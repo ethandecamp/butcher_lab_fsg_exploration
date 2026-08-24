@@ -1,0 +1,923 @@
+=================================================================
+  FSG Loop  —  U_inlet = 0.054 m/s  (5.40 cm/s)
+  N_FSG=15  N_RAMP_FIRST=10  N_RAMP=1  N_HOLD=10
+  Re ≈ 8.2
+  Output: FSG Results/flow_U0p0540
+=================================================================
+
+  Facet tag matching: 459 matched, 0 unmatched
+Solid mesh: 22769 cells, 11615 vertices
+
+/Users/danielpearce/miniconda3/envs/fenics-LEGACY/lib/python3.8/site-packages/dolfin/jit/jit.py:46: RuntimeWarning: mpi4py.MPI.Status size changed, may indicate binary incompatibility. Expected 40 from C header, got 48 from PyObject
+  if MPI.size(mpi_comm) == 1:
+/Users/danielpearce/miniconda3/envs/fenics-LEGACY/lib/python3.8/site-packages/dolfin/jit/jit.py:46: RuntimeWarning: mpi4py.MPI.Datatype size changed, may indicate binary incompatibility. Expected 24 from C header, got 32 from PyObject
+  if MPI.size(mpi_comm) == 1:
+/Users/danielpearce/miniconda3/envs/fenics-LEGACY/lib/python3.8/site-packages/dolfin/jit/jit.py:46: RuntimeWarning: mpi4py.MPI.Request size changed, may indicate binary incompatibility. Expected 32 from C header, got 40 from PyObject
+  if MPI.size(mpi_comm) == 1:
+/Users/danielpearce/miniconda3/envs/fenics-LEGACY/lib/python3.8/site-packages/dolfin/jit/jit.py:46: RuntimeWarning: mpi4py.MPI.Prequest size changed, may indicate binary incompatibility. Expected 32 from C header, got 40 from PyObject
+  if MPI.size(mpi_comm) == 1:
+/Users/danielpearce/miniconda3/envs/fenics-LEGACY/lib/python3.8/site-packages/dolfin/jit/jit.py:46: RuntimeWarning: mpi4py.MPI.Grequest size changed, may indicate binary incompatibility. Expected 40 from C header, got 48 from PyObject
+  if MPI.size(mpi_comm) == 1:
+/Users/danielpearce/miniconda3/envs/fenics-LEGACY/lib/python3.8/site-packages/dolfin/jit/jit.py:46: RuntimeWarning: mpi4py.MPI.Message size changed, may indicate binary incompatibility. Expected 32 from C header, got 40 from PyObject
+  if MPI.size(mpi_comm) == 1:
+/Users/danielpearce/miniconda3/envs/fenics-LEGACY/lib/python3.8/site-packages/dolfin/jit/jit.py:46: RuntimeWarning: mpi4py.MPI.Op size changed, may indicate binary incompatibility. Expected 40 from C header, got 48 from PyObject
+  if MPI.size(mpi_comm) == 1:
+/Users/danielpearce/miniconda3/envs/fenics-LEGACY/lib/python3.8/site-packages/dolfin/jit/jit.py:46: RuntimeWarning: mpi4py.MPI.Group size changed, may indicate binary incompatibility. Expected 24 from C header, got 32 from PyObject
+  if MPI.size(mpi_comm) == 1:
+/Users/danielpearce/miniconda3/envs/fenics-LEGACY/lib/python3.8/site-packages/dolfin/jit/jit.py:46: RuntimeWarning: mpi4py.MPI.Info size changed, may indicate binary incompatibility. Expected 24 from C header, got 32 from PyObject
+  if MPI.size(mpi_comm) == 1:
+/Users/danielpearce/miniconda3/envs/fenics-LEGACY/lib/python3.8/site-packages/dolfin/jit/jit.py:46: RuntimeWarning: mpi4py.MPI.Errhandler size changed, may indicate binary incompatibility. Expected 24 from C header, got 32 from PyObject
+  if MPI.size(mpi_comm) == 1:
+/Users/danielpearce/miniconda3/envs/fenics-LEGACY/lib/python3.8/site-packages/dolfin/jit/jit.py:46: RuntimeWarning: mpi4py.MPI.Comm size changed, may indicate binary incompatibility. Expected 24 from C header, got 32 from PyObject
+  if MPI.size(mpi_comm) == 1:
+/Users/danielpearce/miniconda3/envs/fenics-LEGACY/lib/python3.8/site-packages/dolfin/jit/jit.py:46: RuntimeWarning: mpi4py.MPI.Intracomm size changed, may indicate binary incompatibility. Expected 24 from C header, got 32 from PyObject
+  if MPI.size(mpi_comm) == 1:
+/Users/danielpearce/miniconda3/envs/fenics-LEGACY/lib/python3.8/site-packages/dolfin/jit/jit.py:46: RuntimeWarning: mpi4py.MPI.Topocomm size changed, may indicate binary incompatibility. Expected 24 from C header, got 32 from PyObject
+  if MPI.size(mpi_comm) == 1:
+/Users/danielpearce/miniconda3/envs/fenics-LEGACY/lib/python3.8/site-packages/dolfin/jit/jit.py:46: RuntimeWarning: mpi4py.MPI.Cartcomm size changed, may indicate binary incompatibility. Expected 24 from C header, got 32 from PyObject
+  if MPI.size(mpi_comm) == 1:
+/Users/danielpearce/miniconda3/envs/fenics-LEGACY/lib/python3.8/site-packages/dolfin/jit/jit.py:46: RuntimeWarning: mpi4py.MPI.Graphcomm size changed, may indicate binary incompatibility. Expected 24 from C header, got 32 from PyObject
+  if MPI.size(mpi_comm) == 1:
+/Users/danielpearce/miniconda3/envs/fenics-LEGACY/lib/python3.8/site-packages/dolfin/jit/jit.py:46: RuntimeWarning: mpi4py.MPI.Distgraphcomm size changed, may indicate binary incompatibility. Expected 24 from C header, got 32 from PyObject
+  if MPI.size(mpi_comm) == 1:
+/Users/danielpearce/miniconda3/envs/fenics-LEGACY/lib/python3.8/site-packages/dolfin/jit/jit.py:46: RuntimeWarning: mpi4py.MPI.Intercomm size changed, may indicate binary incompatibility. Expected 24 from C header, got 32 from PyObject
+  if MPI.size(mpi_comm) == 1:
+/Users/danielpearce/miniconda3/envs/fenics-LEGACY/lib/python3.8/site-packages/dolfin/jit/jit.py:46: RuntimeWarning: mpi4py.MPI.Win size changed, may indicate binary incompatibility. Expected 32 from C header, got 40 from PyObject
+  if MPI.size(mpi_comm) == 1:
+/Users/danielpearce/miniconda3/envs/fenics-LEGACY/lib/python3.8/site-packages/dolfin/jit/jit.py:46: RuntimeWarning: mpi4py.MPI.File size changed, may indicate binary incompatibility. Expected 32 from C header, got 40 from PyObject
+  if MPI.size(mpi_comm) == 1:
+  [Growth mask] k=0.103  w range: [0.903, 1.000]  w at midline: 0.950
+
+─────────────────────────────────────────────────────────────────
+  FSG iteration 000 / 014
+─────────────────────────────────────────────────────────────────
+
+  Facet tag matching: 1435 matched, 0 unmatched
+  Fluid mesh: 52471 cells
+[NS] Re ≈ 8.2  (rho=1060.0, mu=0.0035, U=0.054, H=5.0000e-04)
+[NS] Solving Navier-Stokes ...
+[NS] Solved. |u|_max = 1.0706e-01 m/s
+[NS] Stress tensor projected onto CG1.
+  p    range: [2.048e+01, 5.384e+01] Pa
+  |tau| range: [8.705e-04, 6.647e+00] Pa
+[TractionMapper] Arc points : 259
+[TractionMapper] p     range: [2.0482e+01, 5.3835e+01] Pa
+[TractionMapper] |tau| range: [8.7053e-04, 6.6467e+00] Pa
+
+  [Solid] step 1  scale=0.1000  g=[1.0000, 1.0000]
+
+  [Solid] step 2  scale=0.2000  g=[1.0000, 1.0000]
+
+  [Solid] step 3  scale=0.3000  g=[1.0000, 1.0000]
+
+  [Solid] step 4  scale=0.4000  g=[1.0000, 1.0000]
+
+  [Solid] step 5  scale=0.5000  g=[1.0000, 1.0000]
+
+  [Solid] step 6  scale=0.6000  g=[1.0000, 1.0000]
+
+  [Solid] step 7  scale=0.7000  g=[1.0000, 1.0000]
+
+  [Solid] step 8  scale=0.8000  g=[1.0000, 1.0000]
+
+  [Solid] step 9  scale=0.9000  g=[1.0000, 1.0000]
+
+  [Solid] step 10  scale=1.0000  g=[1.0000, 1.0000]
+
+  [Solid] step 11  scale=1.0000  g=[1.0000, 1.0000]
+  [Solid] g updated → [0.8169, 1.0993]  stimulus range: [-37.702, 22.000] Pa
+
+  [Solid] step 12  scale=1.0000  g=[0.8169, 1.0993]
+  [Solid] g updated → [0.5947, 1.1987]  stimulus range: [-45.715, 22.000] Pa
+
+  [Solid] step 13  scale=1.0000  g=[0.5947, 1.1987]
+  [Solid] g updated → [0.5000, 1.2980]  stimulus range: [-59.315, 22.000] Pa
+
+  [Solid] step 14  scale=1.0000  g=[0.5000, 1.2980]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-72.543, 21.567] Pa
+
+  [Solid] step 15  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-67.840, 21.560] Pa
+
+  [Solid] step 16  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-67.316, 21.529] Pa
+
+  [Solid] step 17  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-65.037, 21.509] Pa
+
+  [Solid] step 18  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-66.295, 21.515] Pa
+
+  [Solid] step 19  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-67.479, 21.638] Pa
+
+  [Solid] step 20  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-68.701, 21.770] Pa
+
+  ── Step 000 summary ──────────────────────────
+  Max |u|     : 128.07 µm
+  Max arc shift: 131.60 µm
+  g range     : [0.5000, 1.3000]
+  g mean      : 0.6006
+  Elapsed     : 668.4 s
+  Saved to    : FSG Results/flow_U0p0540/step_000
+
+─────────────────────────────────────────────────────────────────
+  FSG iteration 001 / 014
+─────────────────────────────────────────────────────────────────
+
+  Facet tag matching: 1395 matched, 0 unmatched
+  Fluid mesh: 53969 cells
+[NS] Re ≈ 8.2  (rho=1060.0, mu=0.0035, U=0.054, H=5.0000e-04)
+[NS] Solving Navier-Stokes ...
+[NS] Solved. |u|_max = 7.3154e-02 m/s
+[NS] Stress tensor projected onto CG1.
+  p    range: [2.095e+01, 3.407e+01] Pa
+  |tau| range: [1.872e-03, 3.962e+00] Pa
+[TractionMapper] Arc points : 219
+[TractionMapper] p     range: [2.0946e+01, 3.4071e+01] Pa
+[TractionMapper] |tau| range: [1.8725e-03, 3.9622e+00] Pa
+
+  [Solid] step 21  scale=1.0000  g=[0.5000, 1.3000]
+
+  [Solid] step 22  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-52.788, 22.000] Pa
+
+  [Solid] step 23  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-53.026, 22.000] Pa
+
+  [Solid] step 24  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-53.958, 22.000] Pa
+
+  [Solid] step 25  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-56.249, 22.000] Pa
+
+  [Solid] step 26  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-58.634, 22.000] Pa
+
+  [Solid] step 27  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-60.353, 22.000] Pa
+
+  [Solid] step 28  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-62.462, 22.000] Pa
+
+  [Solid] step 29  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-64.715, 22.000] Pa
+
+  [Solid] step 30  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-65.700, 22.000] Pa
+
+  [Solid] step 31  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-68.117, 22.000] Pa
+
+  ── Step 001 summary ──────────────────────────
+  Max |u|     : 125.90 µm
+  Max arc shift: 127.49 µm
+  g range     : [0.5000, 1.3000]
+  g mean      : 0.5949
+  Elapsed     : 1095.9 s
+  Saved to    : FSG Results/flow_U0p0540/step_001
+
+─────────────────────────────────────────────────────────────────
+  FSG iteration 002 / 014
+─────────────────────────────────────────────────────────────────
+
+  Facet tag matching: 1395 matched, 0 unmatched
+  Fluid mesh: 53617 cells
+[NS] Re ≈ 8.2  (rho=1060.0, mu=0.0035, U=0.054, H=5.0000e-04)
+[NS] Solving Navier-Stokes ...
+[NS] Solved. |u|_max = 7.2198e-02 m/s
+[NS] Stress tensor projected onto CG1.
+  p    range: [2.086e+01, 3.417e+01] Pa
+  |tau| range: [1.918e-03, 4.035e+00] Pa
+[TractionMapper] Arc points : 219
+[TractionMapper] p     range: [2.0864e+01, 3.4171e+01] Pa
+[TractionMapper] |tau| range: [1.9176e-03, 4.0346e+00] Pa
+
+  [Solid] step 32  scale=1.0000  g=[0.5000, 1.3000]
+
+  [Solid] step 33  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-71.269, 22.000] Pa
+
+  [Solid] step 34  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-74.213, 22.000] Pa
+
+  [Solid] step 35  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-75.885, 22.000] Pa
+
+  [Solid] step 36  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-78.409, 22.000] Pa
+
+  [Solid] step 37  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-79.891, 22.000] Pa
+
+  [Solid] step 38  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-82.235, 22.000] Pa
+
+  [Solid] step 39  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-81.353, 22.000] Pa
+
+  [Solid] step 40  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-81.594, 22.000] Pa
+
+  [Solid] step 41  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-80.983, 22.000] Pa
+
+  [Solid] step 42  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-85.321, 22.000] Pa
+
+  ── Step 002 summary ──────────────────────────
+  Max |u|     : 125.83 µm
+  Max arc shift: 127.49 µm
+  g range     : [0.5000, 1.3000]
+  g mean      : 0.5939
+  Elapsed     : 1487.8 s
+  Saved to    : FSG Results/flow_U0p0540/step_002
+
+─────────────────────────────────────────────────────────────────
+  FSG iteration 003 / 014
+─────────────────────────────────────────────────────────────────
+
+  Facet tag matching: 1396 matched, 0 unmatched
+  Fluid mesh: 53686 cells
+[NS] Re ≈ 8.2  (rho=1060.0, mu=0.0035, U=0.054, H=5.0000e-04)
+[NS] Solving Navier-Stokes ...
+[NS] Solved. |u|_max = 7.1898e-02 m/s
+[NS] Stress tensor projected onto CG1.
+  p    range: [2.084e+01, 3.416e+01] Pa
+  |tau| range: [3.476e-03, 4.018e+00] Pa
+[TractionMapper] Arc points : 220
+[TractionMapper] p     range: [2.0835e+01, 3.4157e+01] Pa
+[TractionMapper] |tau| range: [3.4763e-03, 4.0180e+00] Pa
+
+  [Solid] step 43  scale=1.0000  g=[0.5000, 1.3000]
+
+  [Solid] step 44  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-88.575, 22.000] Pa
+
+  [Solid] step 45  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-88.478, 22.000] Pa
+
+  [Solid] step 46  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-87.903, 22.000] Pa
+
+  [Solid] step 47  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-85.943, 22.000] Pa
+
+  [Solid] step 48  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-84.554, 22.000] Pa
+
+  [Solid] step 49  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-82.007, 22.000] Pa
+
+  [Solid] step 50  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-81.087, 22.000] Pa
+
+  [Solid] step 51  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-84.755, 22.000] Pa
+
+  [Solid] step 52  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-85.263, 22.000] Pa
+
+  [Solid] step 53  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-85.348, 22.000] Pa
+
+  ── Step 003 summary ──────────────────────────
+  Max |u|     : 125.81 µm
+  Max arc shift: 127.50 µm
+  g range     : [0.5000, 1.3000]
+  g mean      : 0.5933
+  Elapsed     : 1875.7 s
+  Saved to    : FSG Results/flow_U0p0540/step_003
+
+─────────────────────────────────────────────────────────────────
+  FSG iteration 004 / 014
+─────────────────────────────────────────────────────────────────
+
+  Facet tag matching: 1396 matched, 0 unmatched
+  Fluid mesh: 53564 cells
+[NS] Re ≈ 8.2  (rho=1060.0, mu=0.0035, U=0.054, H=5.0000e-04)
+[NS] Solving Navier-Stokes ...
+[NS] Solved. |u|_max = 7.1709e-02 m/s
+[NS] Stress tensor projected onto CG1.
+  p    range: [2.082e+01, 3.415e+01] Pa
+  |tau| range: [3.618e-03, 4.009e+00] Pa
+[TractionMapper] Arc points : 220
+[TractionMapper] p     range: [2.0824e+01, 3.4153e+01] Pa
+[TractionMapper] |tau| range: [3.6180e-03, 4.0087e+00] Pa
+
+  [Solid] step 54  scale=1.0000  g=[0.5000, 1.3000]
+
+  [Solid] step 55  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-82.559, 22.000] Pa
+
+  [Solid] step 56  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-84.703, 22.000] Pa
+
+  [Solid] step 57  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-85.510, 22.000] Pa
+
+  [Solid] step 58  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-84.657, 22.000] Pa
+
+  [Solid] step 59  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-82.271, 22.000] Pa
+
+  [Solid] step 60  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-82.943, 22.000] Pa
+
+  [Solid] step 61  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-83.610, 22.000] Pa
+
+  [Solid] step 62  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-83.599, 22.000] Pa
+
+  [Solid] step 63  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-80.754, 22.000] Pa
+
+  [Solid] step 64  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-81.018, 22.000] Pa
+
+  ── Step 004 summary ──────────────────────────
+  Max |u|     : 125.80 µm
+  Max arc shift: 127.50 µm
+  g range     : [0.5000, 1.3000]
+  g mean      : 0.5928
+  Elapsed     : 2258.0 s
+  Saved to    : FSG Results/flow_U0p0540/step_004
+
+─────────────────────────────────────────────────────────────────
+  FSG iteration 005 / 014
+─────────────────────────────────────────────────────────────────
+
+  Facet tag matching: 1396 matched, 0 unmatched
+  Fluid mesh: 53506 cells
+[NS] Re ≈ 8.2  (rho=1060.0, mu=0.0035, U=0.054, H=5.0000e-04)
+[NS] Solving Navier-Stokes ...
+[NS] Solved. |u|_max = 7.1585e-02 m/s
+[NS] Stress tensor projected onto CG1.
+  p    range: [2.082e+01, 3.415e+01] Pa
+  |tau| range: [3.599e-03, 3.998e+00] Pa
+[TractionMapper] Arc points : 220
+[TractionMapper] p     range: [2.0821e+01, 3.4148e+01] Pa
+[TractionMapper] |tau| range: [3.5993e-03, 3.9982e+00] Pa
+
+  [Solid] step 65  scale=1.0000  g=[0.5000, 1.3000]
+
+  [Solid] step 66  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-82.086, 22.000] Pa
+
+  [Solid] step 67  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-82.353, 22.000] Pa
+
+  [Solid] step 68  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-80.482, 22.000] Pa
+
+  [Solid] step 69  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-79.830, 22.000] Pa
+
+  [Solid] step 70  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-81.168, 22.000] Pa
+
+  [Solid] step 71  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-81.124, 22.000] Pa
+
+  [Solid] step 72  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-80.811, 22.000] Pa
+
+  [Solid] step 73  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-78.424, 22.000] Pa
+
+  [Solid] step 74  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-79.025, 22.000] Pa
+
+  [Solid] step 75  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-78.582, 22.000] Pa
+
+  ── Step 005 summary ──────────────────────────
+  Max |u|     : 125.80 µm
+  Max arc shift: 127.51 µm
+  g range     : [0.5000, 1.3000]
+  g mean      : 0.5923
+  Elapsed     : 2647.4 s
+  Saved to    : FSG Results/flow_U0p0540/step_005
+
+─────────────────────────────────────────────────────────────────
+  FSG iteration 006 / 014
+─────────────────────────────────────────────────────────────────
+
+  Facet tag matching: 1396 matched, 0 unmatched
+  Fluid mesh: 53636 cells
+[NS] Re ≈ 8.2  (rho=1060.0, mu=0.0035, U=0.054, H=5.0000e-04)
+[NS] Solving Navier-Stokes ...
+[NS] Solved. |u|_max = 7.1505e-02 m/s
+[NS] Stress tensor projected onto CG1.
+  p    range: [2.082e+01, 3.415e+01] Pa
+  |tau| range: [3.713e-03, 3.980e+00] Pa
+[TractionMapper] Arc points : 220
+[TractionMapper] p     range: [2.0820e+01, 3.4145e+01] Pa
+[TractionMapper] |tau| range: [3.7131e-03, 3.9802e+00] Pa
+
+  [Solid] step 76  scale=1.0000  g=[0.5000, 1.3000]
+
+  [Solid] step 77  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-76.733, 22.000] Pa
+
+  [Solid] step 78  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-76.074, 22.000] Pa
+
+  [Solid] step 79  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-74.677, 22.000] Pa
+
+  [Solid] step 80  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-77.445, 22.000] Pa
+
+  [Solid] step 81  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-79.144, 22.000] Pa
+
+  [Solid] step 82  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-79.548, 22.000] Pa
+
+  [Solid] step 83  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-79.462, 22.000] Pa
+
+  [Solid] step 84  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-77.882, 22.000] Pa
+
+  [Solid] step 85  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-77.596, 22.000] Pa
+
+  [Solid] step 86  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-77.615, 22.000] Pa
+
+  ── Step 006 summary ──────────────────────────
+  Max |u|     : 125.80 µm
+  Max arc shift: 127.53 µm
+  g range     : [0.5000, 1.3000]
+  g mean      : 0.5918
+  Elapsed     : 3038.9 s
+  Saved to    : FSG Results/flow_U0p0540/step_006
+
+─────────────────────────────────────────────────────────────────
+  FSG iteration 007 / 014
+─────────────────────────────────────────────────────────────────
+
+  Facet tag matching: 1396 matched, 0 unmatched
+  Fluid mesh: 53580 cells
+[NS] Re ≈ 8.2  (rho=1060.0, mu=0.0035, U=0.054, H=5.0000e-04)
+[NS] Solving Navier-Stokes ...
+[NS] Solved. |u|_max = 7.1453e-02 m/s
+[NS] Stress tensor projected onto CG1.
+  p    range: [2.082e+01, 3.414e+01] Pa
+  |tau| range: [3.640e-03, 3.948e+00] Pa
+[TractionMapper] Arc points : 220
+[TractionMapper] p     range: [2.0820e+01, 3.4143e+01] Pa
+[TractionMapper] |tau| range: [3.6397e-03, 3.9482e+00] Pa
+
+  [Solid] step 87  scale=1.0000  g=[0.5000, 1.3000]
+
+  [Solid] step 88  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-77.912, 22.000] Pa
+
+  [Solid] step 89  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-78.393, 22.000] Pa
+
+  [Solid] step 90  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-78.408, 22.000] Pa
+
+  [Solid] step 91  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-76.579, 22.000] Pa
+
+  [Solid] step 92  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-76.538, 22.000] Pa
+
+  [Solid] step 93  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-76.361, 22.000] Pa
+
+  [Solid] step 94  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-76.192, 22.000] Pa
+
+  [Solid] step 95  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-77.041, 22.000] Pa
+
+  [Solid] step 96  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-77.097, 22.000] Pa
+
+  [Solid] step 97  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-76.015, 22.000] Pa
+
+  ── Step 007 summary ──────────────────────────
+  Max |u|     : 125.80 µm
+  Max arc shift: 127.54 µm
+  g range     : [0.5000, 1.3000]
+  g mean      : 0.5915
+  Elapsed     : 3422.5 s
+  Saved to    : FSG Results/flow_U0p0540/step_007
+
+─────────────────────────────────────────────────────────────────
+  FSG iteration 008 / 014
+─────────────────────────────────────────────────────────────────
+
+  Facet tag matching: 1396 matched, 0 unmatched
+  Fluid mesh: 53822 cells
+[NS] Re ≈ 8.2  (rho=1060.0, mu=0.0035, U=0.054, H=5.0000e-04)
+[NS] Solving Navier-Stokes ...
+[NS] Solved. |u|_max = 7.1419e-02 m/s
+[NS] Stress tensor projected onto CG1.
+  p    range: [2.082e+01, 3.414e+01] Pa
+  |tau| range: [3.556e-03, 3.920e+00] Pa
+[TractionMapper] Arc points : 220
+[TractionMapper] p     range: [2.0820e+01, 3.4142e+01] Pa
+[TractionMapper] |tau| range: [3.5556e-03, 3.9204e+00] Pa
+
+  [Solid] step 98  scale=1.0000  g=[0.5000, 1.3000]
+
+  [Solid] step 99  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-74.367, 22.000] Pa
+
+  [Solid] step 100  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-74.670, 22.000] Pa
+
+  [Solid] step 101  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-74.417, 22.000] Pa
+
+  [Solid] step 102  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-74.659, 22.000] Pa
+
+  [Solid] step 103  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-75.601, 22.000] Pa
+
+  [Solid] step 104  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-75.993, 22.000] Pa
+
+  [Solid] step 105  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-75.125, 22.000] Pa
+
+  [Solid] step 106  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-73.577, 22.000] Pa
+
+  [Solid] step 107  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-73.728, 22.000] Pa
+
+  [Solid] step 108  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-73.509, 22.000] Pa
+
+  ── Step 008 summary ──────────────────────────
+  Max |u|     : 125.80 µm
+  Max arc shift: 127.56 µm
+  g range     : [0.5000, 1.3000]
+  g mean      : 0.5912
+  Elapsed     : 3803.7 s
+  Saved to    : FSG Results/flow_U0p0540/step_008
+
+─────────────────────────────────────────────────────────────────
+  FSG iteration 009 / 014
+─────────────────────────────────────────────────────────────────
+
+  Facet tag matching: 1396 matched, 0 unmatched
+  Fluid mesh: 53844 cells
+[NS] Re ≈ 8.2  (rho=1060.0, mu=0.0035, U=0.054, H=5.0000e-04)
+[NS] Solving Navier-Stokes ...
+[NS] Solved. |u|_max = 7.1397e-02 m/s
+[NS] Stress tensor projected onto CG1.
+  p    range: [2.082e+01, 3.414e+01] Pa
+  |tau| range: [3.634e-03, 3.894e+00] Pa
+[TractionMapper] Arc points : 220
+[TractionMapper] p     range: [2.0822e+01, 3.4142e+01] Pa
+[TractionMapper] |tau| range: [3.6338e-03, 3.8943e+00] Pa
+
+  [Solid] step 109  scale=1.0000  g=[0.5000, 1.3000]
+
+  [Solid] step 110  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-72.511, 22.000] Pa
+
+  [Solid] step 111  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-72.788, 22.000] Pa
+
+  [Solid] step 112  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-73.634, 22.000] Pa
+
+  [Solid] step 113  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-73.576, 22.000] Pa
+
+  [Solid] step 114  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-72.497, 22.000] Pa
+
+  [Solid] step 115  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-71.521, 22.000] Pa
+
+  [Solid] step 116  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-72.008, 22.000] Pa
+
+  [Solid] step 117  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-73.337, 22.000] Pa
+
+  [Solid] step 118  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-74.394, 22.000] Pa
+
+  [Solid] step 119  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-74.483, 22.000] Pa
+
+  ── Step 009 summary ──────────────────────────
+  Max |u|     : 125.80 µm
+  Max arc shift: 127.58 µm
+  g range     : [0.5000, 1.3000]
+  g mean      : 0.5909
+  Elapsed     : 4186.7 s
+  Saved to    : FSG Results/flow_U0p0540/step_009
+
+─────────────────────────────────────────────────────────────────
+  FSG iteration 010 / 014
+─────────────────────────────────────────────────────────────────
+
+  Facet tag matching: 1396 matched, 0 unmatched
+  Fluid mesh: 53918 cells
+[NS] Re ≈ 8.2  (rho=1060.0, mu=0.0035, U=0.054, H=5.0000e-04)
+[NS] Solving Navier-Stokes ...
+[NS] Solved. |u|_max = 7.1373e-02 m/s
+[NS] Stress tensor projected onto CG1.
+  p    range: [2.082e+01, 3.414e+01] Pa
+  |tau| range: [3.756e-03, 3.985e+00] Pa
+[TractionMapper] Arc points : 220
+[TractionMapper] p     range: [2.0823e+01, 3.4141e+01] Pa
+[TractionMapper] |tau| range: [3.7557e-03, 3.9854e+00] Pa
+
+  [Solid] step 120  scale=1.0000  g=[0.5000, 1.3000]
+
+  [Solid] step 121  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-74.608, 22.000] Pa
+
+  [Solid] step 122  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-74.350, 22.000] Pa
+
+  [Solid] step 123  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-73.081, 22.000] Pa
+
+  [Solid] step 124  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-71.737, 22.000] Pa
+
+  [Solid] step 125  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-72.413, 22.000] Pa
+
+  [Solid] step 126  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-72.723, 22.000] Pa
+
+  [Solid] step 127  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-72.725, 22.000] Pa
+
+  [Solid] step 128  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-72.401, 22.000] Pa
+
+  [Solid] step 129  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-71.717, 22.000] Pa
+
+  [Solid] step 130  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-71.345, 22.000] Pa
+
+  ── Step 010 summary ──────────────────────────
+  Max |u|     : 125.81 µm
+  Max arc shift: 127.60 µm
+  g range     : [0.5000, 1.3000]
+  g mean      : 0.5906
+  Elapsed     : 4562.3 s
+  Saved to    : FSG Results/flow_U0p0540/step_010
+
+─────────────────────────────────────────────────────────────────
+  FSG iteration 011 / 014
+─────────────────────────────────────────────────────────────────
+
+  Facet tag matching: 1396 matched, 0 unmatched
+  Fluid mesh: 53492 cells
+[NS] Re ≈ 8.2  (rho=1060.0, mu=0.0035, U=0.054, H=5.0000e-04)
+[NS] Solving Navier-Stokes ...
+[NS] Solved. |u|_max = 7.1366e-02 m/s
+[NS] Stress tensor projected onto CG1.
+  p    range: [2.082e+01, 3.414e+01] Pa
+  |tau| range: [3.513e-03, 4.103e+00] Pa
+[TractionMapper] Arc points : 220
+[TractionMapper] p     range: [2.0825e+01, 3.4141e+01] Pa
+[TractionMapper] |tau| range: [3.5134e-03, 4.1028e+00] Pa
+
+  [Solid] step 131  scale=1.0000  g=[0.5000, 1.3000]
+
+  [Solid] step 132  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-71.219, 22.000] Pa
+
+  [Solid] step 133  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-70.439, 22.000] Pa
+
+  [Solid] step 134  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-69.951, 22.000] Pa
+
+  [Solid] step 135  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-69.995, 22.000] Pa
+
+  [Solid] step 136  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-69.960, 22.000] Pa
+
+  [Solid] step 137  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-69.839, 22.000] Pa
+
+  [Solid] step 138  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-70.059, 22.000] Pa
+
+  [Solid] step 139  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-70.192, 22.000] Pa
+
+  [Solid] step 140  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-70.596, 22.000] Pa
+
+  [Solid] step 141  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-70.792, 22.000] Pa
+
+  ── Step 011 summary ──────────────────────────
+  Max |u|     : 125.81 µm
+  Max arc shift: 127.61 µm
+  g range     : [0.5000, 1.3000]
+  g mean      : 0.5903
+  Elapsed     : 4931.4 s
+  Saved to    : FSG Results/flow_U0p0540/step_011
+
+─────────────────────────────────────────────────────────────────
+  FSG iteration 012 / 014
+─────────────────────────────────────────────────────────────────
+
+  Facet tag matching: 1396 matched, 0 unmatched
+  Fluid mesh: 53578 cells
+[NS] Re ≈ 8.2  (rho=1060.0, mu=0.0035, U=0.054, H=5.0000e-04)
+[NS] Solving Navier-Stokes ...
+[NS] Solved. |u|_max = 7.1355e-02 m/s
+[NS] Stress tensor projected onto CG1.
+  p    range: [2.083e+01, 3.414e+01] Pa
+  |tau| range: [3.941e-03, 4.184e+00] Pa
+[TractionMapper] Arc points : 220
+[TractionMapper] p     range: [2.0825e+01, 3.4141e+01] Pa
+[TractionMapper] |tau| range: [3.9408e-03, 4.1842e+00] Pa
+
+  [Solid] step 142  scale=1.0000  g=[0.5000, 1.3000]
+
+  [Solid] step 143  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-70.520, 22.000] Pa
+
+  [Solid] step 144  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-69.163, 22.000] Pa
+
+  [Solid] step 145  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-68.901, 22.000] Pa
+
+  [Solid] step 146  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-69.261, 22.000] Pa
+
+  [Solid] step 147  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-69.462, 22.000] Pa
+
+  [Solid] step 148  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-69.490, 22.000] Pa
+
+  [Solid] step 149  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-69.362, 22.000] Pa
+
+  [Solid] step 150  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-69.068, 22.000] Pa
+
+  [Solid] step 151  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-68.838, 22.000] Pa
+
+  [Solid] step 152  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-68.810, 22.000] Pa
+
+  ── Step 012 summary ──────────────────────────
+  Max |u|     : 125.81 µm
+  Max arc shift: 127.62 µm
+  g range     : [0.5000, 1.3000]
+  g mean      : 0.5901
+  Elapsed     : 5285.0 s
+  Saved to    : FSG Results/flow_U0p0540/step_012
+
+─────────────────────────────────────────────────────────────────
+  FSG iteration 013 / 014
+─────────────────────────────────────────────────────────────────
+
+  Facet tag matching: 1396 matched, 0 unmatched
+  Fluid mesh: 53624 cells
+[NS] Re ≈ 8.2  (rho=1060.0, mu=0.0035, U=0.054, H=5.0000e-04)
+[NS] Solving Navier-Stokes ...
+[NS] Solved. |u|_max = 7.1346e-02 m/s
+[NS] Stress tensor projected onto CG1.
+  p    range: [2.083e+01, 3.414e+01] Pa
+  |tau| range: [3.366e-03, 4.243e+00] Pa
+[TractionMapper] Arc points : 220
+[TractionMapper] p     range: [2.0827e+01, 3.4142e+01] Pa
+[TractionMapper] |tau| range: [3.3660e-03, 4.2428e+00] Pa
+
+  [Solid] step 153  scale=1.0000  g=[0.5000, 1.3000]
+
+  [Solid] step 154  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-68.758, 22.000] Pa
+
+  [Solid] step 155  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-68.518, 22.000] Pa
+
+  [Solid] step 156  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-67.833, 22.000] Pa
+
+  [Solid] step 157  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-67.388, 22.000] Pa
+
+  [Solid] step 158  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-67.434, 22.000] Pa
+
+  [Solid] step 159  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-67.453, 22.000] Pa
+
+  [Solid] step 160  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-67.438, 22.000] Pa
+
+  [Solid] step 161  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-67.493, 22.000] Pa
+
+  [Solid] step 162  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-67.466, 22.000] Pa
+
+  [Solid] step 163  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-67.343, 22.000] Pa
+
+  ── Step 013 summary ──────────────────────────
+  Max |u|     : 125.81 µm
+  Max arc shift: 127.64 µm
+  g range     : [0.5000, 1.3000]
+  g mean      : 0.5900
+  Elapsed     : 5630.6 s
+  Saved to    : FSG Results/flow_U0p0540/step_013
+
+─────────────────────────────────────────────────────────────────
+  FSG iteration 014 / 014
+─────────────────────────────────────────────────────────────────
+
+  Facet tag matching: 1396 matched, 0 unmatched
+  Fluid mesh: 53740 cells
+[NS] Re ≈ 8.2  (rho=1060.0, mu=0.0035, U=0.054, H=5.0000e-04)
+[NS] Solving Navier-Stokes ...
+[NS] Solved. |u|_max = 7.1338e-02 m/s
+[NS] Stress tensor projected onto CG1.
+  p    range: [2.083e+01, 3.414e+01] Pa
+  |tau| range: [3.627e-03, 4.323e+00] Pa
+[TractionMapper] Arc points : 220
+[TractionMapper] p     range: [2.0828e+01, 3.4144e+01] Pa
+[TractionMapper] |tau| range: [3.6266e-03, 4.3227e+00] Pa
+
+  [Solid] step 164  scale=1.0000  g=[0.5000, 1.3000]
+
+  [Solid] step 165  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-67.279, 22.000] Pa
+
+  [Solid] step 166  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-67.348, 22.000] Pa
+
+  [Solid] step 167  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-67.324, 22.000] Pa
+
+  [Solid] step 168  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-67.167, 22.000] Pa
+
+  [Solid] step 169  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-66.888, 22.000] Pa
+
+  [Solid] step 170  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-66.361, 22.000] Pa
+
+  [Solid] step 171  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-65.798, 22.000] Pa
+
+  [Solid] step 172  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-65.781, 22.000] Pa
+
+  [Solid] step 173  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-65.905, 22.000] Pa
+
+  [Solid] step 174  scale=1.0000  g=[0.5000, 1.3000]
+  [Solid] g updated → [0.5000, 1.3000]  stimulus range: [-66.019, 22.000] Pa
+
+  ── Step 014 summary ──────────────────────────
+  Max |u|     : 125.81 µm
+  Max arc shift: 127.64 µm
+  g range     : [0.5000, 1.3000]
+  g mean      : 0.5899
+  Elapsed     : 6004.7 s
+  Saved to    : FSG Results/flow_U0p0540/step_014
+
+=================================================================
+  FSG loop complete.
+  Total runtime : 6004.7 s
+  Results in    : FSG Results/flow_U0p0540
+
+  Per-step outputs (results/step_NNN/):
+    fluid_velocity.xdmf   — velocity field (ParaView)
+    fluid_pressure.xdmf   — pressure field (ParaView)
+    solid_fields.xdmf     — all solid fields (ParaView)
+    arc_data.npz          — p, tau arrays (plotting)
+    g_field.npy           — raw growth factor array
+
+  Combined time-series (final/):
+    solid_fields.xdmf     — all steps, scrub in ParaView
+=================================================================
