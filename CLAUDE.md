@@ -15,6 +15,12 @@ handoff/reference material, not an established codebase:
   shape or conventions; treat it as input material until the actual project direction is set.
 - `resources_for_ethan/` — background PDFs/slides (EndMT biology, FSG modeling papers, related
   computational-modeling projects).
+- [`RESOURCES.md`](RESOURCES.md) — indexes both of the above. Sections 1–5 summarize every file in
+  `resources_for_ethan/`; **section 6 is a source-code-level walkthrough of `one_way_fsg_model/`**
+  (pipeline architecture, module-by-module algorithms/parameters, data formats, gotchas, and a
+  module-boundary map for refactoring) written from a full read of every `.py` file there. Check
+  RESOURCES.md before re-reading source files or the PDFs/slides from scratch — it exists so that
+  work doesn't have to be redone.
 
 There is no build system, test suite, or lint config anywhere in the repo yet, and no project
 code of Ethan's own so far.

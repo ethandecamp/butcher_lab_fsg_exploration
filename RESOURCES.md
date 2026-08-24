@@ -5,8 +5,14 @@ material for the LLM-based hypothesis-generation project on the AV cushion fluid
 (FSG) + gene-regulatory-network (GRN) model. Read this instead of opening every file cold.
 
 Entries are grouped by topic, not alphabetically. Each entry gives the file, what it is, a
-summary, and takeaways aimed specifically at this project. For the FSG/GRN model code itself
-(not covered here), see [`one_way_fsg_model/README.txt`](one_way_fsg_model/README.txt).
+summary, and takeaways aimed specifically at this project. Sections 1–5 cover the background
+PDFs/slides in `resources_for_ethan/`. **Section 6 covers the `one_way_fsg_model/` code itself** —
+a from-the-source-code walkthrough (pipeline architecture, module-by-module algorithms/params,
+data formats, and gotchas) written after reading every `.py` file in that folder, so a future
+reader doesn't have to redo that pass. `one_way_fsg_model/README.txt` is still the canonical
+reference for exact field/column layouts and is excellent on its own — section 6 complements it
+with implementation-level detail (algorithms, parameters, control flow, caveats) the README
+doesn't go into.
 
 **Note on the three `.pptx` decks:** they're huge (24–170MB, mostly embedded images/video) and
 were summarized from programmatically extracted on-slide text only — titles, labels, and
@@ -316,3 +322,252 @@ finds that parietal (bottom) leaflet strain, via PCA, best separates healthy fro
   the GRN/FSG hypothesis-generation work.
 - Same caveat as above: open the original .pptx for the actual figures — ~169MB of this file is
   image/video not captured by text extraction.
+
+---
+
+## 6. Code walkthrough: `one_way_fsg_model/`
+
+This section is a source-code-level summary of every `.py` file in `one_way_fsg_model/`, not
+just the README. Read `README.txt` first for the canonical field/column/folder-layout reference
+(it's already excellent) — this section adds the algorithms, parameters, control flow, and
+gotchas the README doesn't cover, plus a module-boundary map for anyone modularizing this into a
+reusable package. Nothing in `one_way_fsg_model/` needs FEniCS/gmsh except `run_fsg.py` itself —
+every downstream stage (export, GRN, plotting) only needs `numpy, scipy, h5py, matplotlib,
+pandas` (+`joblib` for the GRN spatial driver).
+
+### 6.1 Pipeline architecture
+
+Two independent stages chained by intermediate CSV/npz files:
+
+```
+Mechanics (FSG loop)  ->  post-processing/export  ->  GRN model (ODE network)  ->  hypothesis figures
+run_fsg.py + 4 modules     process_fsg_results.py      networkpoint.py +           plot_grn_hypothesis_trends.py
+                            extract_fsg_fields.py       networkinput.py
+                            build_grn_inputs.py
+```
+
+Each FSG iteration (`run_fsg.py`): (1) mesh the fluid channel around the current cushion shape,
+(2) solve steady Navier-Stokes for wall shear stress (WSS) + pressure on the surface, (3) map
+those tractions onto the solid mesh, (4) solve hyperelastic solid mechanics under that load, (5)
+grow the solid via a compression-homeostasis law over several sub-steps, (6) extract the new
+deformed outline and repeat. Three canonical runs ship in `FSG Results/`: `flow_U0p0180`
+(1.8 cm/s, "Underflow"), `flow_U0p0360` (3.6 cm/s, "Healthy"), `flow_U0p0540` (5.4 cm/s,
+"Overflow"), each `step_000`-`step_014` (production runs used `N_FSG=15`, `N_HOLD=10` — the
+script's own top-of-file default is `N_FSG=48`, and the module docstring cites yet other stale
+numbers; always trust the live constants/CLI args over the docstring).
+
+### 6.2 Mechanics core modules
+
+**`mesh_builder.py`** — all gmsh geometry/meshing plus the meshio -> dolfin `Mesh` converter.
+- `build_solid_mesh` / `build_solid_mesh_from_arc`: half-ellipse or arbitrary-arc solid mesh, with
+  localized corner refinement near the base to avoid slivers.
+- `build_fluid_mesh`: builds the channel domain via a gmsh OCC boolean cut (channel minus cap),
+  then re-identifies inlet/outlet/wall/arc boundaries by bounding-box geometry (since OCC assigns
+  new curve IDs after the cut); refines near the arc and base corners.
+- `msh_to_fenics`: reads the `.msh` via `meshio`, builds a dolfin `Mesh` + `cell_tags` +
+  `facet_tags` by matching line-element vertex pairs to dolfin facets.
+- Physical tag convention: solid `1`=base/clamped, `2`=arc/loaded, `10`=solid surface; fluid
+  `10`=inlet, `11`=outlet, `12`=top wall, `13`=solid arc (no-slip + traction extraction),
+  `14`=bottom wall, `20`=fluid surface.
+- **In:** cap geometry params or an arc coordinate array (for remeshing), channel bounding box,
+  mesh sizing (`H_FLUID, H_ARC, H_SOLID, H_CORNER`). **Out:** `.msh` file -> tagged dolfin `Mesh`.
+- Gotcha: a subprocess-watchdog helper (`_worker_main`) exists for killing gmsh if it hangs on
+  degenerate geometry, but `run_fsg.py` calls the mesh builders in-process — that protection isn't
+  actually engaged; only a post-hoc "0 triangles" `RuntimeError` check catches self-intersection.
+
+**`fluid_solver.py`** — steady incompressible Navier-Stokes + traction extraction.
+- `solve_navier_stokes`: Taylor-Hood P2(velocity)/P1(pressure), no stabilization (comment notes
+  SUPG/PSPG would be needed for Re >> 100). Weak form `rho(u.grad(u)).v dx + sigma_f(u,p):eps(v) dx
+  + div(u) q dx = 0`, `sigma_f = 2*mu*eps(u) - p*I`. Newton solve via `mumps`, 50 iters, rtol 1e-8.
+  BCs: parabolic inlet profile (tag 10), no-slip top/arc/bottom (12/13/14), do-nothing outlet (11).
+  A `symmetry_bottom` flag exists but is never passed `True` from `run_fsg.py`.
+- `_extract_arc_traction`: projects Cauchy stress, evaluates `t = sigma.n` at each arc facet
+  midpoint, decomposes into pressure (`t.n`) and WSS (`|t - (t.n)n|`) components.
+- **In:** tagged fluid mesh, `rho`, `mu`, inlet velocity, channel `y0/y1`. **Out:** `u_f`, `p_f`,
+  and `arc_data` dict (`x,y,p,tau_x,tau_y,tau_mag,nx,ny`) sampled at the surface only.
+- Also contains `solve_transient_navier_stokes` (BDF1 + Picard, periodic inlet, TAWSS/OSI) — a
+  pulsatile-flow variant that is **not called by `run_fsg.py`**, kept for reuse/experimentation.
+
+**`traction_mapper.py`** — thin bridge from CFD arrays to FEM boundary loads.
+- `build_traction_expressions(arc_data)`: 1-D linear interpolation (`scipy.interpolate.interp1d`
+  along arc `x`) wrapped as FEniCS `UserExpression`s `p_expr`, `wss_expr`. Used as
+  `traction = -p_expr*n + wss_expr` in the solid solver's residual.
+- Also has `get_deformed_arc_coords` — a simpler, less robust duplicate of the arc-extraction logic
+  that actually lives in `run_fsg.get_deformed_arc`; this duplicate is **not called** anywhere.
+- **In:** `arc_data` from the fluid solver. **Out:** two `UserExpression`s. Stateless.
+
+**`solid_solver.py`** (largest/most complex module, ~1000 lines) — hyperelastic mechanics +
+growth.
+- Constitutive model: multiplicative growth split `F = Fe.Fg` (`Fg = sqrt(g)*I` isotropic by
+  default; an anisotropic tensor variant exists but is off unless `anisotropic=True` is passed).
+  Exponential (Demiray/Fung-type) strain energy
+  `psi = (C/2)*(exp(alpha*(I1e-2))-1) + (1/D)*(Je-1)^2`, defaults `C_exp=200.0`, `alpha_exp=0.30`,
+  `D_exp=6.0e-3`. Computes von Mises, closed-form principal stresses, tension/compression
+  magnitude, Green-Lagrange strain, Jacobians. Newton solve via `mumps`, 200 iters, rtol 1e-9.
+- Growth law (`_growth_dg`, compression-homeostasis, Buskohl-style): `sigma_comp = max(-sigma_min,
+  0)`; setpoint `sigma_comp_home_Pa=38.0`, dead band `3.0` Pa; `dg = dt_g * k_g * stimulus /
+  setpoint` with `k_g=0.007`, `dt_g=0.5`; clipped to `dg_max_step=0.05` per hold step; masked near
+  the clamped base by a smoothstep height mask; result clipped to `g in [0.3, 1.3]`.
+- Adaptive growth sub-stepping (`run_hold`): if applying the full growth increment fails Newton
+  convergence, halves the fraction and retries down to `1/32` before raising — **this exception is
+  not caught anywhere in `run_fsg.py`**, so it will crash an unattended run (unlike a fluid-solve
+  failure, which is caught and just skips the iteration).
+- Large surface area of alternate config (`base_bc` variants: roller/asym_roller/atrial_pin/
+  yroller_spring; atrial-compaction setpoint shift; the anisotropic growth path) is implemented but
+  **inert under `run_fsg.py`'s default `SolidSolver(mesh, facet_tags)` call** — only active if a
+  caller explicitly passes a custom `config` dict, which the shipped runs never do.
+- **In:** tagged solid mesh, material constants, traction expressions, growth-law constants, and
+  *previous-iteration state* (current `u`, `g` — this solver is a stateful object, not a pure
+  function, unlike the other three mechanics modules). **Out:** updated `u`, `g`, plus the full
+  derived-field bundle (von Mises, principal stresses, Cauchy stress, `F`, Green-Lagrange `E`,
+  `J_e`, `J_g`).
+
+**`run_fsg.py`** — orchestrator, `python3 run_fsg.py [--u_inlet] [--n_fsg] [--n_hold]`.
+- Loops the four modules above per iteration; `get_deformed_arc` (lines ~193-256) extracts the new
+  boundary from the converged solid state — sorts by *reference* angle (robust to large asymmetric
+  deformation, unlike sorting by deformed x), clamps `y >= CHANNEL_Y0`, refits with an exact cubic
+  spline and resamples at `N_ARC_PTS=300` uniform arc-length points. This is the closure of the
+  loop: its output feeds the next iteration's `build_fluid_mesh` input.
+- Every `N_REMESH` iterations, `remesh_solid` rebuilds the solid mesh on the current deformed/grown
+  shape as a new stress-free reference (updated-Lagrangian), resets `g` to 1 and `u` to 0, and
+  rotates to a new `final_genN` XDMF; `_save_cumulative_g` recomposes growth across generations
+  post-hoc via `LinearNDInterpolator`/nearest-neighbor fallback interpolation.
+- Key parameters (all in the top-of-file constants, metres unless noted): `LS=1e-3`,
+  `A_CAP/B_CAP=0.40/0.14*LS`, channel `CHANNEL_X0/X1=+-4*LS`, `CHANNEL_Y0/Y1=0/0.40*LS`,
+  `H_FLUID=0.020*LS`, `H_ARC=0.004*LS`, `H_SOLID=0.004*LS`, `N_ARC_PTS=300`, `RHO=1060.0` kg/m^3,
+  `MU=3.5e-3` Pa.s, `U_INLET=0.040` m/s default, `N_FSG=48` default, `N_RAMP_FIRST=10`,
+  `N_RAMP=1`, `N_HOLD=10` default, `N_REMESH=5`, `N_RAMP_REMESH=5`, `RESULTS_ROOT="FSG Results"`
+  (relative — run from `one_way_fsg_model/`).
+- Output tree per case: `fsg_log.txt`, `solid.msh`, `cell_centroids.npy`,
+  `solid_remesh_XXX.msh`/`cell_centroids_remesh_XXX.npy` per remesh generation, `cumulative_g.npy`,
+  `final_genN/solid_fields.xdmf` (+`.h5`, time series per generation), and `step_000...step_NNN/`
+  each holding `fluid.msh`, `fluid_velocity.xdmf`, `fluid_pressure.xdmf`, `arc_data.npz`,
+  `solid_fields.xdmf`(+`.h5`), `g_field.npy`.
+- Gotcha: a Navier-Stokes solve failure is caught and just `continue`s to the next iteration
+  (prior solid/arc state carried forward, but the `step_XXX` folder still gets created without
+  fluid/solid outputs for that step) — downstream consumers should tolerate gaps in `step_XXX/`.
+
+### 6.3 Post-processing / export scripts (mechanics -> portable tables)
+
+Three scripts with overlapping logic (surface-band KDTree detection, grid-decimation
+downsampling) and no CLI args — all configuration is module-level constants edited by hand:
+
+| Script | Scope | Coords used | Output |
+|---|---|---|---|
+| `extract_fsg_fields.py` | one case, one step (hardcoded `flow_U0p0360/step_014`) | **reference** (undeformed) — inconsistent with the other two | `extracted_fields/{wss_arc_surface,cauchy_stress_cushion}_final.{csv,json,npz,txt}` |
+| `process_fsg_results.py` | one case (`FLOW_CASE` const), every step (auto-discovered), 5 downsample fractions (100/80/60/40/20%) + a custom fixed-count grid, 4 file formats | deformed (ref + displacement) | `extracted_fields/` (final step) + `dynamic_inputs/step_XXX/` (all steps), incl. `mechanical_inputs_trimmed.*` — the schema the GRN side consumes |
+| `build_grn_inputs.py` | all 3 canonical cases at once, final step only (`STEP_NAME="step_014"` hardcoded, not auto-discovered) | deformed | `FSG Results/<case>/grn_inputs/{downsampled_XXXpct,custom_140node}/grn_input.*` — 5-column schema `x_m, y_m, von_mises_Pa, wss_mag_dyn_cm2, is_surface`; also a 3-case comparison PNG with a shared color scale |
+
+Common conventions across all three: WSS converted Pa -> dyn/cm^2 via `PA_TO_DYN(_CM2) = 10.0`;
+all stress/pressure fields left in Pa; surface-band detection = KDTree median nearest-neighbor
+spacing x a threshold multiplier (`BAND_MULT=2.0`); downsampling = nearest-point grid decimation,
+**not** interpolation/averaging. `VisualisationVector/N` in every `solid_fields.h5` means the same
+thing everywhere: `0`=displacement, `1`=von Mises, `2/3`=max/min principal stress, `4`=tension,
+`5`=compression magnitude, `6/7`=`J_e`/`J_g`, `8`=growth factor `g`, `9/10/11`=deformation
+gradient `F` / Green-Lagrange `E` / Cauchy stress (each flattened 3x3, row-major — 2D uses
+`xx=[:,0], xy=[:,1], yy=[:,4]`).
+
+**This 3-way schema overlap is the main thing worth consolidating if refactoring** — the true
+interface boundary between the FEniCS-dependent mechanics half and the pure-NumPy GRN half is
+just `x_m, y_m, wss_mag_dyn_cm2, von_mises_Pa[, is_surface]`; right now three scripts each produce
+a slightly different variant of it.
+
+### 6.4 GRN model
+
+**`networkpoint.py`** — the GRN itself: a 23-node ODE network relaxing toward Hill-function
+targets, `dy/dt = (target - y) / tau`, three timescales by node role (`tau_signal=0.1h` for
+ligand/receptor nodes, `tau_tf=1h` for TF/SMAD nodes, `tau_output=10h` for Snai1/Snai2/EndMT).
+- `NODES` (23, in solver order): `JAG, DLL, NOTCH_receptors, NICD, MAML, RBPJ, HEY` (Notch),
+  `LRP, beta_catenin, TCF_LEF` (Wnt), `YAP_TAZ` (mechanosensing), `TGFb_TypeI, TGFb_TypeII,
+  TGFb_123, SMAD23, SMAD4` (TGFb), `BMP_TypeI, BMP_TypeII, BMP_2456, SMAD67, SMAD158` (BMP),
+  `Snai1, Snai2, EndMT` (outputs).
+- Mechanical inputs enter at exactly three/four points: `JAG`/`DLL` (shear, opposite sign), `NICD`
+  (direct shear term), `klf2` (shear, gates Wnt/BMP), `YAP_TAZ` (tissue/mechanical stress — its
+  sole input). `EndMT = mean(hill(Snai1), hill(Snai2))`.
+- Hill function: `hill(x,n,ec50) = x^n / (ec50^n + x^n)`, clipped `x` to `[0,1]`; `AND` = product,
+  `OR` = iterated probabilistic-or, `NOT(x)=1-x`.
+- `Params` dataclass: `n=2.0` (Hill coefficient), `ec50=0.2` (internal), `ec50_input=0.5` (for
+  shear/mech inputs specifically), fixed ligand levels `Noggin_Chordin=0.05, VEGF=0.30, DKK=0.1,
+  WNT=0.2, Frizzled=0.5`, timescales as above. Normalization ranges `SHEAR_MAX=30.0` dyn/cm^2,
+  `MECH_MAX=100.0` Pa.
+- Entry points: `simulate(shear01, mech01, p=Params(), t_end=300.0, y0=None)` and
+  `simulate_physical(shear_dyn, mech_pa, ...)` (converts via `SHEAR_MAX`/`MECH_MAX` then calls
+  `simulate`) — both integrate with `scipy.integrate.solve_ivp(method="LSODA", rtol=1e-8,
+  atol=1e-10)` and return `(t, y(t), steady_state)`.
+- `python3 networkpoint.py` run directly sweeps shear alone, mech alone, one time course, and a
+  30x30 EndMT(shear,mech) heatmap, saving 4 PNGs into the script's own directory.
+
+**`networkinput.py`** — drives the point model across a full spatial field.
+- Reads a mechanical-input CSV (`x_m, y_m, wss_mag_dyn_cm2, von_mises_Pa` — the schema from 6.3),
+  normalizes by `WSS_MAX=30.0`/`MECH_MAX=100.0`, runs three scenarios per point (`shear_only`,
+  `mech_only`, `combined`) in parallel via `joblib.Parallel(n_jobs=-1, backend="loky")`, writes
+  `results_spatial.csv` + per-node/scenario contour plots.
+- **Two things to fix before rerunning:** `CSV_PATH` (line 14) is hardcoded to a nonexistent path
+  on a different collaborator's machine — repoint it at e.g.
+  `FSG Results/flow_U0p0360/extracted_fields/mechanical_inputs_trimmed.csv` or any
+  `dynamic_inputs/step_XXX/.../mechanical_inputs_trimmed.csv`; and `OUTPUT_NODES` (line 18) is
+  currently `["Snai1", "Snai2", "EndMT"]` (3 nodes), narrower than the **5-node** output
+  (`+ NICD, YAP_TAZ`) already sitting in `AHA GRN Plots/3scenarios_results/*/results_spatial.csv`
+  — confirmed directly against those CSVs. This is a known, documented gap (an earlier pipeline
+  version produced the 5-node files); reproducing it is a one-line fix since both extra keys
+  already exist in `networkpoint.NODES`/`IDX`. Also requires `joblib` (not needed elsewhere in the
+  folder).
+
+### 6.5 Plotting/visualization scripts (leaf modules — consumers only, nothing feeds back downstream)
+
+- **`load_and_plot_fields_example.py`** — the recommended starting point, fully self-contained
+  (h5py+numpy+matplotlib only). `--case flow_U0pXXXX --step N` CLI flags. Its docstring/code has
+  the authoritative `VisualisationVector` index table (reproduced in 6.3 above).
+- **`plot_fsg_fields.py`** — no CLI; hardcoded to `flow_U0p0360/step_014` via `STEP_DIR`/
+  `EXTRACTED` constants; depends on `extracted_fields/` already existing (i.e. run after
+  `extract_fsg_fields.py`/`process_fsg_results.py`).
+- **`visualize_growth.py <run_dir> [--stride] [--equal] [--no-anim] [--anchor]`** — animates
+  (`growth_anim.gif`) and overlays (`growth_overlay.png`) cushion growth across all steps of a run
+  (profile evolution, stress/growth glyphs, height/area trends, WSS/pressure vs. arc length, OSI).
+  Default `run_dir` points at a case not present in this handoff — always pass one of the three
+  shipped case paths explicitly, e.g. `"FSG Results/flow_U0p0180"`.
+- **`plot_grn_hypothesis_trends.py`** — no CLI; builds the 7 figures in
+  `AHA GRN Plots/hypothesis_figures/` from the 3 canonical GRN CSVs (`mechanosensing_axes`,
+  `spatial_switch_profile`, `lr_asymmetry_vs_flow`, `yap_taz_saturation`/`fig_saturation_fraction`
+  — note the filename/function-name mismatch, `input_field_profiles`,
+  `surface_expression_profiles`, `grn_dashboard`). Hardcoded to case folders `080_180/360/540`.
+
+### 6.6 Caveats checklist
+
+- **Hardcoded absolute paths from other collaborators' machines** — cosmetic in most scripts
+  (error-message text, docstring usage examples: `/Users/danielpearce/...`), but
+  `networkinput.py`'s `CSV_PATH` (line 14, `/Users/sophiewang/...`) must be changed before that
+  script will run at all.
+- **Units are consistent but mixed**: WSS in dyn/cm^2 (= Pa x 10), everything else (pressure, von
+  Mises, principal stresses, Cauchy components) in Pa; coordinates in meters at the mechanics
+  layer, sometimes re-expressed in mm/um for plotting.
+- **The GRN 3-node vs. 5-node output discrepancy** (6.4) is the one substantive documented gap
+  between current code and shipped results — trivial to fix (extend `OUTPUT_NODES`) but a
+  future rerun will not reproduce the existing `results_spatial.csv` files as-is otherwise.
+- **No CLI args** except on `run_fsg.py`, `load_and_plot_fields_example.py`, and
+  `visualize_growth.py` — every other script requires hand-editing module-level constants.
+- **Exception handling is inconsistent** in `run_fsg.py`'s main loop: a fluid-solve failure is
+  caught and skips the iteration; a growth-substep failure in `solid_solver.run_hold` is not
+  caught and will crash an unattended run.
+- **FEniCS/gmsh only needed to rerun `run_fsg.py` itself** — every other script (export, GRN,
+  plotting) works on the already-baked `.h5`/`.npz`/`.csv` output with plain
+  numpy/scipy/h5py/matplotlib/pandas.
+
+### 6.7 Suggested module boundaries (if refactoring into a package)
+
+The code is already close to this shape; the main gaps are (a) hardcoded constants that should
+become function parameters, and (b) implicit object state (`SolidSolver`'s `u`/`g` fields,
+`run_fsg.py`'s `arc_coords`) that should become explicit return values passed between steps.
+
+| Module | Inputs | Outputs |
+|---|---|---|
+| Geometry/mesh (`mesh_builder.py`) | cap params or arc coords, channel box, mesh sizing | tagged dolfin `Mesh` |
+| Fluid solver (`fluid_solver.py`) | tagged fluid mesh, `rho`/`mu`, inlet velocity | `u_f`, `p_f`, `arc_data` (surface WSS/pressure) |
+| Traction mapping (`traction_mapper.py`) | `arc_data` | FEniCS `UserExpression`s for the solid load |
+| Solid solver + growth (`solid_solver.py`) | tagged solid mesh, material + growth-law constants, traction exprs, **previous `(u, g)` state** | updated `(u, g)`, full stress/strain field bundle |
+| Arc extraction (currently `run_fsg.get_deformed_arc`, not its own module) | deformed solid mesh + `u` | resampled arc coords -> feeds the *next* iteration's mesh step |
+| Orchestrator (`run_fsg.py`) | run config (`u_inlet, n_fsg, n_hold, n_remesh`, geometry/mesh sizing) | run directory tree; ideally a pure-ish `fsg_step(arc_in, solid_state_in, config) -> (arc_out, solid_state_out, step_record)` looped and persisted by the orchestrator |
+| Export (`process_fsg_results.py` + siblings, ideally merged) | raw run dir, case/step selection, downsample resolutions, surface-band threshold | portable tables at each resolution, in one canonical schema (`x_m, y_m, wss_mag_dyn_cm2, von_mises_Pa[, is_surface]`) |
+| GRN point kinetics (`networkpoint.py`) | shear, mech (normalized or physical), `Params`, integration horizon | trajectory `(t, y(t))` + steady state — already a clean pure function |
+| GRN spatial driver (`networkinput.py`) | mechanical-inputs table (export schema), scenario flags, `OUTPUT_NODES` | `results_spatial.csv` (per-node, per-scenario) |
+| Plotting scripts | exported tables/HDF5 | PNGs/GIFs only — leaf nodes, no downstream consumers, safe to leave as-is |
