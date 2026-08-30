@@ -22,8 +22,30 @@ handoff/reference material, not an established codebase:
   RESOURCES.md before re-reading source files or the PDFs/slides from scratch — it exists so that
   work doesn't have to be redone.
 
-There is no build system, test suite, or lint config anywhere in the repo yet, and no project
-code of Ethan's own so far.
+Ethan's own project code lives in `llm_insights/` (scaffolded 2026-08-30): ruff + pytest
+config, the team style guide, and `TASKS.md`, which is the work queue and the handoff channel
+between planning agents and implementing agents. There is still no build system or test suite
+inside `one_way_fsg_model/`, and none should be added there.
+
+## Hard rule: `one_way_fsg_model/` is read-only
+
+**No code changes may be made to Dan's original FSG model.** Everything under
+`one_way_fsg_model/` is Daniel Pearce's fluid-solid-growth + GRN model, and this project treats
+it as ground truth — it is the oracle that every generated hypothesis is verified against.
+Editing it silently invalidates every result built on top of it, and any comparison against
+previously generated output becomes meaningless.
+
+That means: do not edit, refactor, reformat, lint, "fix", or reorganize any file in that
+folder. Import from it, read its outputs, and wrap it in new code instead. The same applies to
+`RESOURCES.md` and `resources_for_ethan/`.
+
+If something in there looks like a genuine bug (for example the `MECH_MAX` normalization
+clipping ~44% of the overflow case), **do not patch it.** Write it up under **Open questions**
+in `llm_insights/TASKS.md` and raise it with Dan. Deciding whether that behavior is intentional
+is his call, not an agent's.
+
+Ethan's own work goes in `llm_insights/` — see `llm_insights/CLAUDE.md` for the conventions
+that apply there.
 
 ## When real project work begins
 
