@@ -1,0 +1,14 @@
+# Precomputed artifacts. Regenerate with `precompute-grn-surface`.
+# The default 64x64 surface is only ~750 KB, so committing it is defensible if the
+# team would rather have it reproducible-by-checkout — decide once, in a PR.
+data/*.npz
+data/*.h5
+
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+.DS_Store

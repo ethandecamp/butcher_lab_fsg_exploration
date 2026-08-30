@@ -1,0 +1,76 @@
+[project]
+name = "llm-insights"
+version = "0.1.0"
+description = "LLM-driven hypothesis generation and verification over the AV cushion FSG + GRN model."
+requires-python = ">=3.11"
+dependencies = [
+    "loguru",
+    "numpy",
+    "scipy",
+    "joblib",
+    "pandas",
+    "h5py",
+    "matplotlib",
+]
+
+[project.optional-dependencies]
+dev = [
+    # Exact pin required by STYLE_GUIDE.md; must match `rev` in .pre-commit-config.yaml.
+    "ruff==0.16.5",
+    "pre-commit",
+    "pytest",
+]
+
+[project.scripts]
+precompute-grn-surface = "llm_insights.grn_surface.precompute:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "A",    # flake8-builtins
+    "C4",   # flake8-comprehensions
+    "ARG",  # flake8-unused-arguments
+    "PTH",  # flake8-use-pathlib
+    "SIM",  # flake8-simplify
+    "RET",  # flake8-return
+    "ANN",  # flake8-annotations - the style guide requires full type annotations
+    "D",    # pydocstyle - the style guide requires Google-style docstrings
+    "G",    # flake8-logging-format - keeps f-strings out of log calls
+    "RUF",
+]
+ignore = [
+    "D203",  # conflicts with D211 (no blank line before class docstring)
+    "D213",  # conflicts with D212 (summary on the first line, per the style guide)
+    "ANN401",  # allow Any where a signature genuinely needs it
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["D100", "D103", "ANN201"]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

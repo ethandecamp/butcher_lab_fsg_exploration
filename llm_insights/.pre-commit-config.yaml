@@ -1,0 +1,25 @@
+# `rev` must stay in sync with the exact ruff pin in pyproject.toml ([dev] extra).
+
+# The git repo root is the PARENT directory, so pre-commit's file list spans the whole
+# repo. Hard rule 1 in CLAUDE.md makes Dan's model and the reference material read-only,
+# so they are excluded here -- without this, `pre-commit run --all-files` reformats every
+# tracked file under one_way_fsg_model/ and resources_for_ethan/.
+exclude: '^(one_way_fsg_model/|resources_for_ethan/|RESOURCES\.md$)'
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.5
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+        args: [--maxkb=2048]
