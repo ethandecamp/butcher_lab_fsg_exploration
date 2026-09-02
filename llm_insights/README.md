@@ -7,6 +7,11 @@ LLM-driven hypothesis generation and verification over the AV cushion fluid-soli
 the live backend reaches the model through the Claude Code CLI, which authenticates with a
 Claude subscription.
 
+```bash
+cd llm_insights
+PYTHONPATH=src python3 -m llm_insights.agent.run --question "..." --out data/live
+```
+
 ## What this is
 
 Dan's FSG model produces raw fields — velocity, wall shear stress, von Mises stress, growth

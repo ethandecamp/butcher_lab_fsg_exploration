@@ -590,6 +590,22 @@ in Ethan's venv before merging.**
    touched.
 
 ### Log
+- 2026-09-02 (Ethan + Cowork) — **Doc fix on first real use.** Ethan's first run of the §2
+  command failed with `ModuleNotFoundError: No module named 'llm_insights'`. Not a code defect:
+  the editable install was not active in his shell, and every documented run command depended
+  on it. The install itself looks intact on disk (`__editable__.llm_insights-0.1.0.pth` adds
+  `src`, all deps present in `.venv/lib/python3.13/site-packages`), so the cause is
+  environment-level, not repo-level — worth noting that the venv is anaconda-based
+  (`home = /opt/anaconda3/bin`, Python 3.13.9) and he runs with conda `(base)` also active.
+
+  Fix: **every run command in `INSTRUCTIONS.md` now sets `PYTHONPATH=src`**, which works whether
+  or not the package is installed. Verified end to end in all three forms — live (stub CLI),
+  `--dry-run`, and transcript replay — all reproducing the 7-card result. The test commands
+  deliberately do *not* need it: pytest reads `pythonpath = ["src"]` from `pyproject.toml`, and
+  the unittest form runs inside `src/`. §1 now verifies the import explicitly and §9 lists this
+  error. A demo command that depends on an editable install being active is one more thing that
+  can fail in front of an audience, for no benefit.
+
 - 2026-09-02 (Cowork) — Built, reviewed, tested, documented. Ready for review.
   `INSTRUCTIONS.md` rewritten around the keyless path; `README.md` updated (177 -> 228 tests).
 

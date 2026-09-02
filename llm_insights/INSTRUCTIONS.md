@@ -20,9 +20,15 @@ pip install -e ".[dev]"
 Check it worked:
 
 ```bash
-python3 -c "import numpy, scipy, pandas; print('ok')"
+python3 -c "import numpy, scipy, pandas; print('deps ok')"
+python3 -c "import llm_insights; print('package ok')"
 claude --version          # the live backend needs this on PATH
 ```
+
+If the second line says `No module named 'llm_insights'`, the editable install is not active in
+this shell. Re-run `pip install -e ".[dev]"`. **You do not need to fix it to run the demo** —
+every command below sets `PYTHONPATH=src`, which works whether or not the package is installed.
+That is deliberate: one less thing that can fail in front of an audience.
 
 If `claude` is missing: `npm install -g @anthropic-ai/claude-code`, then run `claude` once and
 log in. Nothing in this package ever reads or stores your credentials.
@@ -36,7 +42,7 @@ verdicts are computed in code.
 
 ```bash
 cd llm_insights
-python3 -m llm_insights.agent.run \
+PYTHONPATH=src python3 -m llm_insights.agent.run \
   --question "What differs between the healthy and overflow cases, and why?" \
   --out data/live
 open data/live/report.html
@@ -48,7 +54,7 @@ calls, about 30–90 seconds.
 To use a different model:
 
 ```bash
-python3 -m llm_insights.agent.run --model sonnet --question "..." --out data/live
+PYTHONPATH=src python3 -m llm_insights.agent.run --model sonnet --question "..." --out data/live
 ```
 
 ### What it costs
@@ -68,7 +74,7 @@ Pro allowance. You can run the demo repeatedly without noticing.
 To see the exact prompt and its size before spending anything:
 
 ```bash
-python3 -m llm_insights.agent.run --dry-run --question "..."
+PYTHONPATH=src python3 -m llm_insights.agent.run --dry-run --question "..."
 ```
 
 ### The guardrails, and why each one is there
@@ -85,7 +91,8 @@ python3 -m llm_insights.agent.run --dry-run --question "..."
 Raise a ceiling only deliberately:
 
 ```bash
-python3 -m llm_insights.agent.run --max-calls 20 --max-budget-usd 1.00 --question "..."
+PYTHONPATH=src python3 -m llm_insights.agent.run \
+  --max-calls 20 --max-budget-usd 1.00 --question "..."
 ```
 
 > **Do not add `--bare`.** It looks like the right way to suppress `CLAUDE.md` discovery, but it
@@ -100,7 +107,7 @@ python3 -m llm_insights.agent.run --max-calls 20 --max-budget-usd 1.00 --questio
 Deterministic, free, and offline. Use it if the CLI is unavailable or your allowance is spent.
 
 ```bash
-python3 -m llm_insights.agent.run \
+PYTHONPATH=src python3 -m llm_insights.agent.run \
   --generator transcript \
   --transcript data/demo_transcript.json \
   --question "What differs between the healthy and overflow cases, and why?" \
@@ -136,7 +143,7 @@ Last resort: no CLI, no key, but a browser. The tool copies each prompt to your 
 paste it into a Claude chat, copy the reply, and press Enter. Two exchanges for a typical run.
 
 ```bash
-python3 -m llm_insights.agent.run --generator paste --question "..." --out data/live
+PYTHONPATH=src python3 -m llm_insights.agent.run --generator paste --question "..." --out data/live
 ```
 
 Prompts and replies are also written to `data/paste/` so nothing depends on the clipboard
@@ -152,7 +159,7 @@ instrument rather than a demo, this is the cleanest one available without an API
 
 ```bash
 export ANTHROPIC_API_KEY="sk-ant-..."
-python3 -m llm_insights.agent.run --generator anthropic --model claude-sonnet-4-5 \
+PYTHONPATH=src python3 -m llm_insights.agent.run --generator anthropic --model claude-sonnet-4-5 \
   --question "..." --out data/live
 unset ANTHROPIC_API_KEY
 ```
@@ -177,6 +184,9 @@ python3 -m unittest discover -s ../tests -t .. -v
 ```
 
 **228 tests.** The `-t .` form fails because `tests/` is a sibling of `src/`, not a child.
+
+Neither test command needs `PYTHONPATH`: pytest picks up `pythonpath = ["src"]` from
+`pyproject.toml`, and the unittest form gets it from running inside `src/`.
 
 The suite that matters most is `tests/test_summary.py`. It asks 22 questions of the data, answers
 each one twice — once from the full arrays and once from the summary alone — and asserts the two
@@ -247,7 +257,7 @@ swapping them safe, and it is why adding a keyless backend changed no verificati
 Regenerate the briefing on its own, to read what the model actually sees:
 
 ```bash
-python3 -c "
+PYTHONPATH=src python3 -c "
 from llm_insights.io.dataset import Dataset
 from llm_insights.summary.briefing import build_briefing
 print(build_briefing(Dataset('../one_way_fsg_model')))
@@ -262,6 +272,7 @@ The error message is the CLI's own, which is where the real cause is reported. C
 
 | Message contains | What to do |
 |---|---|
+| `No module named 'llm_insights'` | The editable install is not active in this shell. Every command here already sets `PYTHONPATH=src`, so this should not appear; if it does, you dropped that prefix. `pip install -e ".[dev]"` fixes it permanently. |
 | `is not on PATH` | `npm install -g @anthropic-ai/claude-code`, then `claude` to log in. |
 | `/login`, `Invalid API key` | Run `claude` once interactively and log in. |
 | `unknown model`, `not available on your plan` | The tool retries once on Sonnet automatically. If it still fails, pass `--model sonnet` explicitly. |
