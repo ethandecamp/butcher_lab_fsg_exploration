@@ -26,9 +26,16 @@ claude --version          # the live backend needs this on PATH
 ```
 
 If the second line says `No module named 'llm_insights'`, the editable install is not active in
-this shell. Re-run `pip install -e ".[dev]"`. **You do not need to fix it to run the demo** —
-every command below sets `PYTHONPATH=src`, which works whether or not the package is installed.
-That is deliberate: one less thing that can fail in front of an audience.
+this shell. Re-run `pip install -e ".[dev]"`. Every command below also sets `PYTHONPATH=src`,
+which imports the package whether or not it is installed — one less thing that can fail in front
+of an audience.
+
+**`PYTHONPATH=src` does not substitute for activating the environment.** It makes *this package*
+importable; it does nothing about numpy, pandas or anything else the harness needs. On
+2026-09-02 a live run outside the virtualenv reached the correlation primitive and produced
+`COULD NOT RUN: No module named 'scipy'` — a working project, a broken interpreter choice. Every
+run command below therefore activates the venv first, and the tool now refuses to start if a
+required module is missing.
 
 If `claude` is missing: `npm install -g @anthropic-ai/claude-code`, then run `claude` once and
 log in. Nothing in this package ever reads or stores your credentials.
@@ -42,11 +49,17 @@ verdicts are computed in code.
 
 ```bash
 cd llm_insights
+source .venv/bin/activate
 PYTHONPATH=src python3 -m llm_insights.agent.run \
   --question "What differs between the healthy and overflow cases, and why?" \
   --out data/live
 open data/live/report.html
 ```
+
+The first line matters. Without it the run may use a different interpreter, and a dependency
+that interpreter lacks will surface as a failed card rather than as a setup error. The tool
+prints an `Environment check:` warning when it notices, and refuses to start outright if
+something it needs is missing.
 
 `--generator claude-cli` is the default, so it does not need to be typed. Roughly 6–10 model
 calls, about 30–90 seconds.
@@ -250,6 +263,7 @@ swapping them safe, and it is why adding a keyless backend changed no verificati
 --claude-binary PATH                      claude executable, if not on PATH
 --paste-dir PATH                          where --generator paste writes its files
 
+--skip-preflight                          skip the startup environment check
 --synthesize                              after verification, ask for a written summary
                                           of the run and render it, fenced, at the top
                                           of the report (default: off)
@@ -344,6 +358,9 @@ The error message is the CLI's own, which is where the real cause is reported. C
 | `/login`, `Invalid API key` | Run `claude` once interactively and log in. |
 | `unknown model`, `not available on your plan` | The tool retries once on Haiku automatically. If it still fails, pass `--model haiku` explicitly. |
 | `unknown option` | The tool retries once with a minimal command line, keeping fewer guardrails. Nothing to do. |
+| `Environment check: ERROR ... cannot import ...` | The interpreter is missing something the harness needs. `source .venv/bin/activate && pip install -e ".[dev]"`. No model calls were made, so nothing was spent. |
+| `Environment check: WARNING ... running outside the project virtualenv` | The run will proceed, but `source .venv/bin/activate` first and re-run. This is the 2026-09-02 failure. |
+| A card reading `ENVIRONMENT FAULT` | That test could not run because of this machine's setup. It is not a result: fix the setup and re-run before reading anything into it. |
 | limit or allowance exhausted | Fall back to §3, the recorded replay. |
 | `stopping: this run has reached its $0.50 ceiling` | Working as intended. Raise it with `--max-budget-usd` if you meant to. |
 
@@ -381,6 +398,10 @@ Whatever happens, §3 always works offline, so a demo is never dead.
   frame. They are not co-registered, so no claim currently correlates them directly.
 - **`step_k/arc_data.npz` is the geometry at the end of step k-1.** Step 0 is the pristine
   undeformed cap and is not a simulation result.
+- **The harness needs no scipy.** Pearson and Spearman are computed in numpy
+  (`harness/primitives.py`), verified against hand-computable golden values and, where scipy is
+  installed, against scipy itself in `tests/test_correlation_math.py`. The oracle layer skips
+  where scipy is absent, so run the suite in the venv at least once after touching that math.
 - **Logging uses stdlib `logging`, not loguru**, and tests are `unittest.TestCase` rather than
   pytest-native. Both were forced by a sandbox with no package installs; both run fine under your
   venv now. See TASK-006.

@@ -64,6 +64,7 @@ _OUTCOME_ALIASES: Final[dict[str, tuple[str, ...]]] = {
     "observed": ("observed", "observations", "values", "metrics"),
     "summary": ("summary", "message", "explanation"),
     "error": ("error", "err", "exception"),
+    "error_kind": ("error_kind", "errorKind", "error_type"),
     "hypothesis_id": ("hypothesis_id", "id", "hid", "claim_id"),
 }
 
@@ -84,6 +85,10 @@ class Card:
         observed: Every number the decision rule consumed, keyed by name.
         summary: One line describing what happened.
         error: Why the test could not run, or None if it ran.
+        error_kind: ``"environment"`` when the failure was the machine's -- a missing
+            dependency, an unreadable file -- and None otherwise. An environment fault
+            is evidence about the setup and about nothing else, so the report must not
+            present it alongside claims the simulator actually judged.
         revision_of: Id of the falsified claim this card narrows, if any.
         revised_by: Id of the claim that replaced this one after falsification, if any.
     """
@@ -98,6 +103,7 @@ class Card:
     observed: dict[str, float]
     summary: str
     error: str | None = None
+    error_kind: str | None = None
     revision_of: str | None = None
     revised_by: str | None = None
 
@@ -263,9 +269,13 @@ def _build_card(hyp: Any, outcome: Any | None, hyp_id: str, parent_id: Any) -> C
         observed: dict[str, float] = {}
         summary = "No outcome was recorded for this claim."
         error = "The primitive produced no outcome record."
+        # A missing outcome is a harness bug, not the machine's setup, so it stays an
+        # ordinary COULD NOT RUN rather than being excused as an environment fault.
+        error_kind = None
     else:
         error_value = _field(outcome, "error", _OUTCOME_ALIASES)
         error = _as_str(error_value) or None
+        error_kind = _as_str(_field(outcome, "error_kind", _OUTCOME_ALIASES)) or None
         passed = bool(_field(outcome, "passed", _OUTCOME_ALIASES, False)) and error is None
         observed = _as_float_map(_field(outcome, "observed", _OUTCOME_ALIASES))
         summary = _as_str(_field(outcome, "summary", _OUTCOME_ALIASES))
@@ -282,6 +292,7 @@ def _build_card(hyp: Any, outcome: Any | None, hyp_id: str, parent_id: Any) -> C
         observed=observed,
         summary=summary,
         error=error,
+        error_kind=error_kind,
         revision_of=str(parent_id) if parent_id else None,
         revised_by=None,
     )

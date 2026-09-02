@@ -38,6 +38,7 @@ from llm_insights.agent.synthesis import synthesize, transcript_entry
 from llm_insights.cards.card import cards_from_run, cards_to_json
 from llm_insights.cards.render import write_report
 from llm_insights.io.dataset import Dataset
+from llm_insights import preflight
 
 LOG = logging.getLogger(__name__)
 
@@ -174,6 +175,15 @@ def build_parser() -> argparse.ArgumentParser:
             "(default: 0.0, which changes nothing). It raises a margin the model set "
             "lower and never lowers one it set higher, and the floor is recorded in "
             "the report's provenance and on every card whose margin it raised"
+        ),
+    )
+    parser.add_argument(
+        "--skip-preflight",
+        action="store_true",
+        help=(
+            "skip the environment check. It costs milliseconds and refuses to start only "
+            "on a missing runtime dependency, so the only reason to pass this is that the "
+            "check itself is wrong"
         ),
     )
     parser.add_argument(
@@ -360,6 +370,12 @@ def main(argv: list[str] | None = None) -> int:
         level=getattr(logging, args.log_level),
         format="%(levelname)s %(name)s: %(message)s",
     )
+
+    # Before the dataset, and long before any model call. A missing runtime dependency
+    # used to surface only when a hypothesis happened to reach the primitive that needed
+    # it, arriving as a failed card rather than as a setup error. See TASK-009.
+    if not args.skip_preflight and not preflight.report():
+        return 2
 
     ds = _open_dataset(args.root)
     if args.dry_run:

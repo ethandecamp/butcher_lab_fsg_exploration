@@ -29,6 +29,25 @@ LOG = logging.getLogger(__name__)
 PASS_PREFIX = "PASS"
 FAIL_PREFIX = "FAIL"
 ERROR_PREFIX = "COULD NOT RUN"
+#: Prefix for a failure that was the machine's fault rather than the hypothesis's.
+ENVIRONMENT_PREFIX = "ENVIRONMENT FAULT"
+
+#: Exceptions that mean "this machine could not run the test", as opposed to "this
+#: hypothesis could not be evaluated". Kept narrow on purpose: widening it would start
+#: laundering real harness bugs as somebody else's setup problem.
+_ENVIRONMENT_ERRORS: tuple[type[BaseException], ...] = (ImportError, FileNotFoundError)
+
+
+def classify_error(exc: BaseException) -> str | None:
+    """Return ``"environment"`` when an exception is the machine's fault, else None.
+
+    Args:
+        exc: The exception the primitive raised.
+
+    Returns:
+        ``"environment"`` for a missing dependency or a missing file, otherwise None.
+    """
+    return "environment" if isinstance(exc, _ENVIRONMENT_ERRORS) else None
 
 
 def _lookup(name: Any) -> PrimitiveFn:
@@ -141,13 +160,16 @@ def run(ds: Dataset, h: Hypothesis) -> Outcome:
         summary = str(summary_raw)
     except Exception as exc:  # the whole point of this function is to contain everything
         message = f"{type(exc).__name__}: {exc}" if not isinstance(exc, ValueError) else str(exc)
-        LOG.warning("hypothesis %s could not run: %s", hid, message)
+        kind = classify_error(exc)
+        prefix = ENVIRONMENT_PREFIX if kind == "environment" else ERROR_PREFIX
+        LOG.warning("hypothesis %s %s: %s", hid, prefix.lower(), message)
         return Outcome(
             hypothesis_id=hid,
             passed=False,
             observed={},
-            summary=f"{ERROR_PREFIX}: {message}",
+            summary=f"{prefix}: {message}",
             error=message,
+            error_kind=kind,
         )
 
     prefix = PASS_PREFIX if passed else FAIL_PREFIX

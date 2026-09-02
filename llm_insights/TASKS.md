@@ -757,6 +757,114 @@ and records the floor:
 - Not committed. Porcelain `git commit` SIGBUSes on this mount, and `git status` exits 135
   rather than reporting a clean tree — do not trust it here. Ethan commits from his own terminal.
 
+## TASK-009 — Environment faults: numpy correlation, startup preflight, and a verdict of their own
+
+**Status:** IN REVIEW
+**Owner:** Cowork, 2026-09-02
+**Size:** ~2 hours
+
+### Context
+A live run on 2026-09-02 produced a card reading
+`COULD NOT RUN: ModuleNotFoundError: No module named 'scipy'`. Nothing was wrong with the
+project: scipy was declared in `pyproject.toml` and installed in the venv. The run simply used
+an interpreter that was not the venv's.
+
+That was possible because of TASK-008's own fix. Commit `beffb2f` put `PYTHONPATH=src` on every
+documented command so a missing editable install could not stop a demo. It worked — and it also
+decoupled "the command runs" from "the environment is active." §1 of `INSTRUCTIONS.md` said in
+bold that the import did not need fixing, which was true of the package and false of its
+dependencies. A loud failure was traded for a quiet one.
+
+Two things made it worse than an ordinary missing package:
+
+1. **The import was lazy and deep.** `from scipy import stats` sat inside `correlation`, so it
+   failed only when a hypothesis happened to use that primitive.
+2. **The failure arrived in the wrong channel.** `runner.run` catches everything as
+   `COULD NOT RUN`, which is the state for a claim the harness cannot evaluate. An environment
+   fault was therefore displayed as though it were a fact about the hypothesis.
+
+And it landed on the worst possible card. `correlation` is the only primitive whose answer is
+not already printed in the briefing — every `compare_metric` and `metric_ordering` claim is a
+lookup of a number in the prompt. So a missing scipy silently removes the one test capable of a
+genuine prediction, and leaves a survival rate computed over lookups alone.
+
+### What was built
+
+**1. scipy removed from the runtime path.** `harness/primitives.py` gains `pearson_r`,
+`spearman_r` and `average_ranks`, all numpy. Pearson centres and normalises each vector before
+the dot product rather than dividing a covariance at the end — algebraically identical, better
+conditioned, and what the reference implementation does. Spearman is Pearson over average-tied
+ranks; tie averaging matters here because the dataset is full of exact ties, every node clipped
+at the 100 Pa ceiling reporting identical activity. `scipy` moved from `dependencies` to the
+`dev` extra, where it remains as the test oracle.
+
+**2. Three-layer verification** in `tests/test_correlation_math.py`: hand-computable golden
+values (0.8, sqrt(0.9), ±1) that run anywhere; rank behaviour against ranks written out by hand;
+and an oracle comparing against `scipy.stats` on synthetic and real data, which **skips where
+scipy is absent**. Layers 1 and 2 state exact expected numbers precisely because layer 3 cannot
+be relied on to run.
+
+**3. `llm_insights/preflight.py`**, called from `agent/run.py` before the dataset is opened and
+before any model call, `--dry-run` included. Refuses to start on a missing runtime import, naming
+the module, the interpreter and the fix. Warns — without stopping — when a `.venv` exists and
+`sys.prefix == sys.base_prefix`, which is exactly the shape of this incident. `--skip-preflight`
+exists as an escape hatch.
+
+**4. `Outcome.error_kind`**, defaulting to `None` so nothing existing changes. `ImportError` and
+`FileNotFoundError` classify as `"environment"`; everything else stays `None`. The marker set is
+deliberately narrow — widening it would start laundering real harness bugs as somebody's setup
+problem. A fifth verdict `ENVIRONMENT FAULT` renders with its own colour and glyph, and a banner
+appears above the claims saying those cards carry no evidence either way.
+
+### Log
+
+**2026-09-02 — implementation and verification (Cowork).**
+
+Files added: `src/llm_insights/preflight.py`, `tests/test_correlation_math.py`,
+`tests/test_preflight.py`.
+Files modified: `harness/primitives.py`, `harness/runner.py`, `harness/spec.py`,
+`cards/card.py`, `cards/render.py`, `agent/run.py`, `pyproject.toml`, `INSTRUCTIONS.md`.
+
+Note this task **does** modify the verification core, which TASK-008 deliberately avoided. That
+is the point: the defect was in `primitives.py`. The change is guarded by the three-layer test
+above rather than by leaving the file alone.
+
+Suite before this task: 303 tests, 5 errors, all `ModuleNotFoundError: scipy`. After:
+
+```
+Ran 327 tests in 0.248s
+OK (skipped=5)
+```
+
+**The 5 permanently-red tests are green** — the suite is fully clean on the Cowork VM for the
+first time. The 5 skips are the scipy oracle layer, which cannot run here by definition.
+
+Two of the new tests failed on first run and both were the test's fault, not the code's:
+
+- `pearson_r` on a perfectly correlated pair returns `0.9999999999999998`, not exactly `1.0`.
+  That is ordinary double precision; the clamp exists to stop *overshoot* above 1.0, which would
+  let a claim pass a `r >= 1.0` rule on rounding. Assertions relaxed to `assertAlmostEqual` plus
+  an explicit `abs(r) <= 1.0` check across n = 3, 500 and 5000.
+- The HTML banner assertion compared against the raw constant while the renderer escapes the
+  apostrophe in "machine's". Matched on an apostrophe-free clause instead.
+
+Preflight, run outside the venv on the Cowork VM, reproduces the incident condition:
+
+```
+Environment check:
+  WARNING  running outside the project virtualenv (/usr/bin/python3); the required modules
+           resolved anyway, but any dependency this interpreter lacks will surface mid-run as
+           a failed test rather than as a setup error
+           fix: source .../llm_insights/.venv/bin/activate
+```
+
+**Not done:**
+- **The scipy oracle layer has never run.** The Cowork VM has no scipy, which is the whole
+  problem. `pytest tests/test_correlation_math.py` in Ethan's venv is the missing evidence that
+  the numpy math matches the reference implementation on real data.
+- ruff not run; the pinned 0.16.5 is only in Ethan's venv.
+- Not committed by Cowork's own hand beyond the plumbing recipe; not pushed.
+
 ## Open questions
 
 Questions for Ethan or Dan that are not scoped to a single task. Add, don't delete.

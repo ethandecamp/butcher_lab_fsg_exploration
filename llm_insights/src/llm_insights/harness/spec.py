@@ -82,6 +82,13 @@ class Outcome:
             ``PASS``, ``FAIL`` or ``COULD NOT RUN`` so the three are never confused.
         error: Non-``None`` only when the test could not be evaluated. A test that ran
             and refuted its claim has ``passed=False`` and ``error=None``.
+        error_kind: What sort of failure ``error`` describes. ``"environment"`` means
+            the machine could not run the test -- a missing dependency, an unreadable
+            file -- which is evidence about the setup and about nothing else. ``None``
+            covers both a test that ran and a test defeated by the hypothesis itself, a
+            bad parameter or an empty selection. The distinction matters because an
+            environment fault reported as an ordinary failure reads like a fact about
+            the model; on 2026-09-02 a missing scipy did exactly that.
     """
 
     hypothesis_id: str
@@ -89,11 +96,17 @@ class Outcome:
     observed: dict[str, float]
     summary: str
     error: str | None = None
+    error_kind: str | None = None
 
     @property
     def ran(self) -> bool:
         """True if the test was actually evaluated, whatever its verdict."""
         return self.error is None
+
+    @property
+    def is_environment_fault(self) -> bool:
+        """True when the failure was the machine's, not the hypothesis's."""
+        return self.error is not None and self.error_kind == "environment"
 
 
 def _require(d: dict[str, Any], key: str, kind: type | tuple[type, ...], where: str) -> Any:
@@ -269,6 +282,7 @@ def outcome_to_dict(o: Outcome) -> dict[str, Any]:
         "observed": {k: float(v) for k, v in o.observed.items()},
         "summary": o.summary,
         "error": o.error,
+        "error_kind": o.error_kind,
     }
 
 

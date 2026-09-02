@@ -6,7 +6,6 @@ requires-python = ">=3.11"
 dependencies = [
     "loguru",
     "numpy",
-    "scipy",
     "joblib",
     "pandas",
     "h5py",
@@ -19,6 +18,10 @@ dev = [
     "ruff==0.16.5",
     "pre-commit",
     "pytest",
+    # Reference implementation for the correlation oracle in tests/test_correlation_math.py.
+    # NOT a runtime dependency: the harness computes Pearson and Spearman in numpy, so a
+    # machine without scipy still evaluates every primitive. See TASK-009.
+    "scipy",
 ]
 
 [project.scripts]

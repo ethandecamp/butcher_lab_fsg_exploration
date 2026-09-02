@@ -99,15 +99,39 @@ NARROWED: Final[Verdict] = Verdict(
 COULD_NOT_RUN: Final[Verdict] = Verdict(
     "inert", "COULD NOT RUN", "—", "The test could not execute, so no verdict was reached."
 )
+ENVIRONMENT_FAULT: Final[Verdict] = Verdict(
+    "environment",
+    "ENVIRONMENT FAULT",
+    "⚠",
+    "The machine could not run the test — a missing dependency or file. This says "
+    "nothing about the model, the data, or the claim.",
+)
 
-_ALL_VERDICTS: Final[tuple[Verdict, ...]] = (SURVIVED, FALSIFIED, NARROWED, COULD_NOT_RUN)
+_ALL_VERDICTS: Final[tuple[Verdict, ...]] = (
+    SURVIVED,
+    FALSIFIED,
+    NARROWED,
+    COULD_NOT_RUN,
+    ENVIRONMENT_FAULT,
+)
+
+#: Shown above the claims when any card is an environment fault, because a reader
+#: skimming verdicts must not mistake a broken setup for a result.
+ENVIRONMENT_BANNER: Final[str] = (
+    "One or more tests could not run because of this machine's setup, not because of "
+    "anything in the data or the claims. Those cards are marked ENVIRONMENT FAULT and "
+    "carry no evidence either way; fix the setup and re-run before reading anything "
+    "into them."
+)
 
 
 def verdict_of(card: Card) -> Verdict:
     """Classify a card into its terminal state.
 
-    A card carrying an ``error`` is always ``COULD NOT RUN`` — never ``FALSIFIED`` —
-    because a test that did not execute produced no evidence either way.
+    A card carrying an ``error`` is never ``FALSIFIED``, because a test that did not
+    execute produced no evidence either way. It splits further by ``error_kind``: an
+    ``"environment"`` fault is the machine's failure and is called that, so a broken
+    setup is never displayed as though the harness had judged the claim.
 
     Args:
         card: The card to classify.
@@ -116,10 +140,31 @@ def verdict_of(card: Card) -> Verdict:
         The matching :class:`Verdict`.
     """
     if card.error is not None:
+        if getattr(card, "error_kind", None) == "environment":
+            return ENVIRONMENT_FAULT
         return COULD_NOT_RUN
     if card.passed:
         return SURVIVED
     return NARROWED if card.revised_by else FALSIFIED
+
+
+def _shown_verdicts(tally: Mapping[str, int]) -> tuple[Verdict, ...]:
+    """The verdicts a given run should display.
+
+    ENVIRONMENT FAULT is a property of the machine, not of the investigation, so a
+    healthy run must not carry a permanently-zero row advertising it. The other four
+    always appear: a run with nothing falsified should still say ``FALSIFIED 0``,
+    because that zero is a result. This one is not.
+
+    Args:
+        tally: Counts per verdict label.
+
+    Returns:
+        The verdicts to render, in canonical order.
+    """
+    return tuple(
+        v for v in _ALL_VERDICTS if v is not ENVIRONMENT_FAULT or tally.get(v.label, 0)
+    )
 
 
 def counts(cards: Sequence[Card]) -> dict[str, int]:
@@ -245,8 +290,10 @@ def render_markdown(
         "| Verdict | Count |",
         "| --- | ---: |",
     ]
-    lines += [f"| {verdict.label} | {tally[verdict.label]} |" for verdict in _ALL_VERDICTS]
+    lines += [f"| {verdict.label} | {tally[verdict.label]} |" for verdict in _shown_verdicts(tally)]
     lines.append("")
+    if tally[ENVIRONMENT_FAULT.label]:
+        lines += [f"> **Setup problem.** {ENVIRONMENT_BANNER}", ""]
 
     meta_items = _meta_items(meta)
     if meta_items:
@@ -366,6 +413,8 @@ _CSS: Final[str] = """
   --revision-tint: #e8eaf8;
   --inert: #495260;
   --inert-tint: #eaecef;
+  --environment: #8a5a00;
+  --environment-tint: #fdf1dc;
 }
 
 * { box-sizing: border-box; }
@@ -439,10 +488,12 @@ h1.question {
 .tally li.falsified { border-left-color: var(--falsified); border-left-style: dashed; }
 .tally li.narrowed { border-left-color: var(--revision); border-left-style: double; }
 .tally li.inert { border-left-color: var(--inert); border-left-style: dotted; }
+.tally li.environment { border-left-color: var(--environment); border-left-style: dashed; }
 .tally li.survived .n { color: var(--survived); }
 .tally li.falsified .n { color: var(--falsified); }
 .tally li.narrowed .n { color: var(--revision); }
 .tally li.inert .n { color: var(--inert); }
+.tally li.environment .n { color: var(--environment); }
 
 .legend {
   display: grid;
@@ -499,6 +550,11 @@ h1.question {
 .pill.narrowed { color: var(--revision); background: var(--revision-tint); border-style: double;
   border-width: 4px; }
 .pill.inert { color: var(--inert); background: var(--inert-tint); border-style: dotted; }
+.pill.environment {
+  color: var(--environment);
+  background: var(--environment-tint);
+  border-style: dashed;
+}
 
 /* --- cards --- */
 
@@ -516,6 +572,16 @@ h1.question {
 .card.falsified { border-left-color: var(--falsified); border-left-style: dashed; }
 .card.narrowed { border-left-color: var(--falsified); border-left-style: dashed; }
 .card.inert { border-left-color: var(--inert); border-left-style: dotted; }
+.card.environment { border-left-color: var(--environment); border-left-style: dashed; }
+.envbanner {
+  margin: 0 0 20px;
+  padding: 12px 16px;
+  background: var(--environment-tint);
+  border-left: 4px dashed var(--environment);
+  color: var(--environment);
+  font-size: 13px;
+  line-height: 1.5;
+}
 .card.revision { border-left-color: var(--revision); border-left-style: solid; }
 
 .card-head {
@@ -743,6 +809,8 @@ footer {
     --revision-tint: #1e2138;
     --inert: #a8b2c0;
     --inert-tint: #262b33;
+    --environment: #e8b455;
+    --environment-tint: #33291a;
   }
   .card-head .cid { background: var(--ink); color: #14171c; }
   .mono { background: #12151a; }
@@ -851,6 +919,11 @@ def render_html(
         "<body>",
         '<div class="wrap">',
         _html_masthead(question, meta, tally, synthesis),
+        (
+            f'<p class="envbanner"><strong>Setup problem.</strong> {_esc(ENVIRONMENT_BANNER)}</p>'
+            if tally[ENVIRONMENT_FAULT.label]
+            else ""
+        ),
         '<main class="blocks">',
     ]
 
@@ -904,12 +977,12 @@ def _html_masthead(
     tiles = "".join(
         f'<li class="{v.slug}"><span class="n">{tally[v.label]}</span>'
         f'<span class="k">{_esc(v.label)}</span></li>'
-        for v in _ALL_VERDICTS
+        for v in _shown_verdicts(tally)
     )
     legend = "".join(
         f'<li><span class="pill {v.slug}"><span class="glyph" aria-hidden="true">'
         f"{v.glyph}</span>{_esc(v.label)}</span>{_esc(v.blurb)}</li>"
-        for v in _ALL_VERDICTS
+        for v in _shown_verdicts(tally)
     )
     meta_items = _meta_items(meta)
     provenance = ""

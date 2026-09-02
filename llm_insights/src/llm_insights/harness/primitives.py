@@ -275,6 +275,87 @@ def _finite_pair(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray, 
     return x[keep], y[keep], int(x.size - int(np.count_nonzero(keep)))
 
 
+def average_ranks(values: np.ndarray) -> np.ndarray:
+    """Rank ``values`` ascending, giving tied entries their shared average rank.
+
+    This is ``scipy.stats.rankdata(values, method="average")`` in numpy, which is the
+    ranking Spearman's coefficient is defined over. Ties must be averaged rather than
+    broken arbitrarily: this dataset has many exactly-equal values -- every node clipped
+    at the 100 Pa ceiling reports the identical activity -- and breaking those ties by
+    array position would invent an ordering the data does not have.
+
+    Args:
+        values: The values to rank. Must be finite; callers drop non-finite pairs first.
+
+    Returns:
+        Float ranks in ``[1, n]``, one per input position.
+    """
+    order = np.argsort(values, kind="mergesort")
+    ordered = values[order]
+    n = values.size
+    starts_group = np.empty(n, dtype=bool)
+    starts_group[0] = True
+    np.not_equal(ordered[1:], ordered[:-1], out=starts_group[1:])
+    group_of = np.cumsum(starts_group) - 1
+    starts = np.flatnonzero(starts_group)
+    counts = np.diff(np.append(starts, n))
+    # A group filling 0-based sorted positions [s, s+c) holds 1-based ranks s+1..s+c,
+    # whose mean is s + (c + 1) / 2.
+    means = starts + (counts + 1.0) / 2.0
+    ranks = np.empty(n, dtype=float)
+    ranks[order] = means[group_of]
+    return ranks
+
+
+def pearson_r(x: np.ndarray, y: np.ndarray) -> float:
+    """Pearson's correlation coefficient, in numpy.
+
+    Each vector is centred and divided by its own norm before the dot product, rather
+    than dividing a covariance by a product of standard deviations at the end. The two
+    are algebraically identical; normalising first is better conditioned and is what
+    ``scipy.stats.pearsonr`` does, which keeps this agreeing with the reference
+    implementation to floating-point noise.
+
+    Args:
+        x: First series, finite.
+        y: Second series, finite, same length.
+
+    Returns:
+        The coefficient, clamped into ``[-1, 1]`` so accumulated rounding cannot report
+        a correlation of 1.0000000000000002.
+
+    Raises:
+        ValueError: If either series is constant, which leaves the coefficient undefined.
+    """
+    xm = x - x.mean()
+    ym = y - y.mean()
+    nx = float(np.linalg.norm(xm))
+    ny = float(np.linalg.norm(ym))
+    if nx == 0.0 or ny == 0.0:
+        raise ValueError("a correlation is undefined when a series is constant")
+    r = float(np.dot(xm / nx, ym / ny))
+    return float(min(max(r, -1.0), 1.0))
+
+
+def spearman_r(x: np.ndarray, y: np.ndarray) -> float:
+    """Spearman's rank correlation, in numpy.
+
+    Spearman is exactly Pearson computed over average-tied ranks, so this composes
+    :func:`average_ranks` with :func:`pearson_r` rather than reimplementing anything.
+
+    Args:
+        x: First series, finite.
+        y: Second series, finite, same length.
+
+    Returns:
+        The coefficient in ``[-1, 1]``.
+
+    Raises:
+        ValueError: If either series has no variation once ranked.
+    """
+    return pearson_r(average_ranks(x), average_ranks(y))
+
+
 def _grn_series(grn: GRNField, name: Any) -> np.ndarray:
     """Pull one named column out of the GRN table.
 
@@ -675,12 +756,7 @@ def correlation(
             "correlation is undefined"
         )
 
-    from scipy import stats  # local import keeps module import light
-
-    if method == "pearson":
-        r = float(stats.pearsonr(x, y).statistic)
-    else:
-        r = float(stats.spearmanr(x, y).statistic)
+    r = pearson_r(x, y) if method == "pearson" else spearman_r(x, y)
     passed = compare(op, r, value)
 
     observed = {
