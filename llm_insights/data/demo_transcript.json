@@ -1,0 +1,131 @@
+{
+  "schema_version": 1,
+  "recorded_from": {
+    "generator": "interactive-claude",
+    "model": "claude-opus-5",
+    "generated_at": "2026-09-01T00:00:00Z",
+    "question": "What differs between the healthy and overflow cases, and why?"
+  },
+  "note": "Generations were produced by Claude reading the summary briefing and writing hypotheses in the harness schema, before any test was run. Verification was executed in code by the harness; no language model judged any outcome. Replaying this transcript reproduces the recorded claims exactly.",
+  "entries": [
+    {
+      "kind": "propose",
+      "response": [
+        {
+          "id": "H1",
+          "claim": "Raising inlet flow raises the peak wall shear stress the cushion surface experiences, monotonically across all three cases.",
+          "rationale": "The three cases differ only in inlet velocity. In a channel of fixed geometry, wall shear scales with the near-wall velocity gradient, so the ordering should follow the inlet ordering. If it does not, the cushion's own shape change is dominating the flow field, which would itself be the interesting result.",
+          "test": {
+            "primitive": "metric_ordering",
+            "params": {
+              "metric": "wss_peak_dyn_cm2",
+              "cases": ["Underflow", "Healthy", "Overflow"],
+              "direction": "increasing",
+              "strict": true
+            },
+            "decision_rule": "Peak WSS must strictly increase from Underflow to Healthy to Overflow. Any inversion or tie refutes the claim."
+          }
+        },
+        {
+          "id": "H2",
+          "claim": "As flow increases, the point of maximum shear on the cushion migrates downstream, toward the ventricular end.",
+          "rationale": "Faster flow should delay separation and push the point of maximum near-wall gradient further along the obstacle before the boundary layer detaches. If the shear maximum instead stayed fixed, that would suggest the peak is pinned by geometry rather than set by the flow.",
+          "test": {
+            "primitive": "metric_ordering",
+            "params": {
+              "metric": "wss_peak_s",
+              "cases": ["Underflow", "Healthy", "Overflow"],
+              "direction": "increasing",
+              "strict": true
+            },
+            "decision_rule": "The normalized arc position of peak WSS must strictly increase with inlet velocity. s is 0 at the atrial end and 1 at the ventricular end."
+          }
+        },
+        {
+          "id": "H3",
+          "claim": "The overflow case has the most spatially heterogeneous EndMT response of the three, because it experiences both the highest and the most widely spread mechanical stress.",
+          "rationale": "Overflow shows the largest peak von Mises stress (859 Pa vs 597 Pa healthy) and the largest mean. A wider spread of mechanical input across the tissue should drive a wider spread of downstream gene activity, producing a more heterogeneous fate landscape across the cushion.",
+          "test": {
+            "primitive": "compare_metric",
+            "params": {
+              "metric": "endmt_sd_combined",
+              "case_a": "Overflow",
+              "case_b": "Healthy",
+              "op": "gt",
+              "min_rel_diff": 0.05
+            },
+            "decision_rule": "Spatial standard deviation of EndMT activity must be greater in Overflow than in Healthy, by at least 5% relative, before the difference counts as real."
+          }
+        },
+        {
+          "id": "H4",
+          "claim": "In the overflow case, a large majority of the tissue sits above the stress level at which the gene network stops responding, so most of the cushion is mechanically saturated.",
+          "rationale": "The GRN normalizes von Mises stress against a 100 Pa ceiling and clips. Overflow peaks at 859 Pa. If a large fraction of nodes exceed 100 Pa, gene activity there is pinned regardless of the true local stress, which would make any gene-level comparison in this case partly an artifact of the normalization.",
+          "test": {
+            "primitive": "fraction_above",
+            "params": {
+              "field": "von_mises",
+              "case": "Overflow",
+              "threshold": 100.0,
+              "op": "gt",
+              "value": 0.4
+            },
+            "decision_rule": "More than 40% of the 11,615 solid nodes in the Overflow case must exceed 100 Pa von Mises stress."
+          }
+        },
+        {
+          "id": "H5",
+          "claim": "Faster flow suppresses cushion growth rather than promoting it: the share of tissue that never grows at all rises steeply with inlet velocity.",
+          "rationale": "Cushion height falls from 0.250 mm to 0.124 mm across the three cases, so something is holding growth back at high flow. If the mechanism is tissue being pushed to the growth floor rather than growing more slowly on average, the pinned fraction should order with inlet velocity.",
+          "test": {
+            "primitive": "metric_ordering",
+            "params": {
+              "metric": "growth_pinned_low_fraction",
+              "cases": ["Underflow", "Healthy", "Overflow"],
+              "direction": "increasing",
+              "strict": true
+            },
+            "decision_rule": "The fraction of cells pinned at the growth floor must strictly increase from Underflow to Healthy to Overflow."
+          }
+        },
+        {
+          "id": "H6",
+          "claim": "In the overflow case, Notch signalling and TGF-beta signalling move together spatially, indicating the two pathways are co-activated by the same mechanical input.",
+          "rationale": "If both pathways read the same mechanical stimulus, their spatial patterns should correlate strongly. A weak correlation would suggest the model routes them through genuinely different inputs.",
+          "test": {
+            "primitive": "correlation",
+            "params": {
+              "field_x": "NICD_combined",
+              "field_y": "SMAD23_combined",
+              "case": "Overflow",
+              "op": "gt",
+              "value": 0.7,
+              "method": "pearson"
+            },
+            "decision_rule": "Pearson correlation between NICD and SMAD23 activity across the Overflow grid must exceed 0.7."
+          }
+        }
+      ]
+    },
+    {
+      "kind": "narrow",
+      "failed_id": "H3",
+      "response": {
+        "id": "H3b",
+        "claim": "EndMT heterogeneity peaks in the healthy case, not the overflow case. Past the healthy flow range, raising flow further makes the tissue's gene response more uniform rather than less, because so much of the cushion is pinned at the mechanical ceiling that variation in stress stops producing variation in expression.",
+        "rationale": "The test refuted the original claim in the opposite direction: EndMT spatial SD is 0.128 in Healthy against 0.070 in Overflow, even though Overflow has the higher raw stress spread. The mechanism that reconciles this is saturation. 46% of Overflow nodes exceed the 100 Pa ceiling against 34% in Healthy, and every clipped node returns the identical pinned activity. Clipping half the domain to one value compresses the spatial variance. So the ordering I predicted from raw stress is inverted by the normalization sitting between stress and expression.",
+        "test": {
+          "primitive": "compare_metric",
+          "params": {
+            "metric": "endmt_sd_combined",
+            "case_a": "Healthy",
+            "case_b": "Overflow",
+            "op": "gt",
+            "min_rel_diff": 0.2
+          },
+          "decision_rule": "Spatial standard deviation of EndMT activity must be greater in Healthy than in Overflow by at least 20% relative. This is the reverse of the original prediction, and a stricter margin, so it cannot pass on the same noise the first test would have."
+        }
+      }
+    }
+  ]
+}

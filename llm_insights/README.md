@@ -3,54 +3,85 @@
 LLM-driven hypothesis generation and verification over the AV cushion fluid-solid-growth (FSG)
 + gene-regulatory-network (GRN) model in `../one_way_fsg_model/`.
 
+**To run anything, see [`INSTRUCTIONS.md`](INSTRUCTIONS.md).**
+
 ## What this is
 
 Dan's FSG model produces raw fields — velocity, wall shear stress, von Mises stress, growth
-factor, and 23 GRN node activities across ~9k spatial nodes, 15 timesteps, 3 flow cases. The
-raw output is faithful but not *legible*: it is hard for a researcher to look at it and come
-away with a claim they can defend.
+factor, and GRN node activities across 11,615 solid nodes, 15 timesteps, 3 flow cases, totalling
+roughly 27.4 million field values. The raw output is faithful but not *legible*: it is hard for
+a researcher to look at it and come away with a claim they can defend.
 
 This package builds an agent that proposes qualitative claims about that model and then
 **falsifies them by running the model**, rather than by asking another language model whether
-they sound right. The design rule is that a hypothesis is admissible only if it can be compiled
-into an executable test with a decision rule stated *before* the test runs. The agent never
-grades its own work.
+they sound right. The design rule is that a hypothesis is admissible only if it compiles into an
+executable test with a decision rule stated *before* the test runs. The agent never grades its
+own work.
 
 The FSG model is treated as ground truth. We are not validating biology; we are extracting
 defensible statements about a simulator.
+
+## How it works
+
+```
+FSG output  ->  io  ->  summary  ->  briefing (~3,200 tokens)  ->  generator (LLM)
+                                                                        |
+                                                                   hypotheses
+                                                                        |
+                                          harness (executable code, no LLM)  ->  outcomes
+                                                                        |
+                                                              cards  ->  report.html
+```
+
+Three ideas do the work:
+
+**Compression that is tested.** The summary layer collapses 27.4 M values onto normalized arc
+length — the cushion is a shallow cap and ~94% of the mesh never touches the fluid, so the
+honest low-dimensional view is one-dimensional. That compression is not assumed correct: 22
+questions are answered twice, once from the full arrays and once from the summary alone, and the
+answers must agree. `tests/test_summary.py` includes a negative control that corrupts the summary
+and asserts the same checks then fail.
+
+**Pre-registration.** A claim carries its decision rule before the outcome is known. Prediction
+first, result second.
+
+**Executable verification.** The comparison happens in code, through six primitives. If a claim
+cannot be compiled into one, it is not admissible yet — it goes back to be sharpened. No language
+model, including a critic, decides any outcome.
 
 ## Layout
 
 ```
 llm_insights/
-├── CLAUDE.md          <- agent-facing rules. Read first.
-├── STYLE_GUIDE.md     <- code conventions. Non-negotiable.
-├── TASKS.md           <- the work queue and the inter-agent comms channel.
-├── pyproject.toml     <- ruff + pytest config, dependencies.
-├── data/              <- generated artifacts (gitignored).
-├── src/llm_insights/
-│   └── grn_surface/   <- precomputed GRN response surface + lookup.
-└── tests/
+├── INSTRUCTIONS.md        <- how to run it. Start here.
+├── NOTES_data_formats.md  <- what is on disk, what is unreadable, and the traps.
+├── CLAUDE.md              <- agent-facing rules.
+├── STYLE_GUIDE.md         <- code conventions.
+├── TASKS.md               <- the work queue and inter-agent comms channel.
+├── data/                  <- briefing, transcript, cards, and rendered reports.
+└── src/llm_insights/
+    ├── io/                <- dataset access. The only module that knows the file layout.
+    ├── summary/           <- metrics, arc-length profiles, the briefing.
+    ├── harness/           <- the falsifier: primitives, spec, runner.
+    ├── agent/             <- generator backends, the investigate loop, the CLI.
+    └── cards/             <- card model and the markdown/HTML report.
 ```
 
-## Setup
+## Status
 
-```bash
-cd llm_insights
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-pre-commit install
-```
+The one-question demo works end to end. On *"What differs between the healthy and overflow cases,
+and why?"* it returns 7 cards: 5 survived, 1 falsified-then-narrowed, 1 refused as unanswerable.
 
-## Verify your environment
+The falsified card is the point. The agent predicted that the overflow case would show the most
+spatially heterogeneous EndMT response, because it has the highest and most widely spread
+mechanical stress. The simulator said no — variability is roughly twice as high in the healthy
+case. The narrowed claim that replaced it identifies why: 46% of the overflow domain is clipped
+at the GRN's 100 Pa normalization ceiling, and clipped nodes all return the same pinned activity,
+which compresses spatial variance. That claim survived its own stricter test.
 
-The GRN model needs only `numpy` + `scipy`. The mechanics solver (`run_fsg.py`) needs FEniCS
-and gmsh, which are **not** required for anything in this package:
-
-```bash
-python3 -c "import numpy, scipy, h5py, pandas; print('ok')"
-```
+**177 tests.** See `INSTRUCTIONS.md` §4.
 
 ## Relationship to `one_way_fsg_model/`
 
-Read-only. See `CLAUDE.md` — no code in that folder may be modified.
+Read-only. See `CLAUDE.md` — no code in that folder may be modified. Findings about it go to
+**Open questions** in `TASKS.md` and then to Dan; they are never patched here.

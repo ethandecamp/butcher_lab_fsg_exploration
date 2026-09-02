@@ -1,0 +1,199 @@
+[
+  {
+    "id": "H1",
+    "claim": "Raising inlet flow raises the peak wall shear stress the cushion surface experiences, monotonically across all three cases.",
+    "rationale": "The three cases differ only in inlet velocity. In a channel of fixed geometry, wall shear scales with the near-wall velocity gradient, so the ordering should follow the inlet ordering. If it does not, the cushion's own shape change is dominating the flow field, which would itself be the interesting result.",
+    "decision_rule": "Peak WSS must strictly increase from Underflow to Healthy to Overflow. Any inversion or tie refutes the claim.",
+    "primitive": "metric_ordering",
+    "params": {
+      "metric": "wss_peak_dyn_cm2",
+      "cases": [
+        "Underflow",
+        "Healthy",
+        "Overflow"
+      ],
+      "direction": "increasing",
+      "strict": true
+    },
+    "passed": true,
+    "observed": {
+      "value_flow_U0p0180": 22.607237888027743,
+      "value_flow_U0p0360": 33.55096038392848,
+      "value_flow_U0p0540": 43.2269967681092,
+      "n_cases": 3.0,
+      "n_violations": 0.0,
+      "min_step": 9.676036384180726,
+      "max_step": 10.943722495900733
+    },
+    "summary": "PASS: wss_peak_dyn_cm2 across flow_U0p0180=22.6072 -> flow_U0p0360=33.551 -> flow_U0p0540=43.227: strictly increasing with 0 violation(s) out of 2 step(s)",
+    "error": null,
+    "revision_of": null,
+    "revised_by": null
+  },
+  {
+    "id": "H2",
+    "claim": "As flow increases, the point of maximum shear on the cushion migrates downstream, toward the ventricular end.",
+    "rationale": "Faster flow should delay separation and push the point of maximum near-wall gradient further along the obstacle before the boundary layer detaches. If the shear maximum instead stayed fixed, that would suggest the peak is pinned by geometry rather than set by the flow.",
+    "decision_rule": "The normalized arc position of peak WSS must strictly increase with inlet velocity. s is 0 at the atrial end and 1 at the ventricular end.",
+    "primitive": "metric_ordering",
+    "params": {
+      "metric": "wss_peak_s",
+      "cases": [
+        "Underflow",
+        "Healthy",
+        "Overflow"
+      ],
+      "direction": "increasing",
+      "strict": true
+    },
+    "passed": true,
+    "observed": {
+      "value_flow_U0p0180": 0.5117219253744347,
+      "value_flow_U0p0360": 0.6210369508424461,
+      "value_flow_U0p0540": 0.7716426194450652,
+      "n_cases": 3.0,
+      "n_violations": 0.0,
+      "min_step": 0.10931502546801142,
+      "max_step": 0.15060566860261904
+    },
+    "summary": "PASS: wss_peak_s across flow_U0p0180=0.511722 -> flow_U0p0360=0.621037 -> flow_U0p0540=0.771643: strictly increasing with 0 violation(s) out of 2 step(s)",
+    "error": null,
+    "revision_of": null,
+    "revised_by": null
+  },
+  {
+    "id": "H3",
+    "claim": "The overflow case has the most spatially heterogeneous EndMT response of the three, because it experiences both the highest and the most widely spread mechanical stress.",
+    "rationale": "Overflow shows the largest peak von Mises stress (859 Pa vs 597 Pa healthy) and the largest mean. A wider spread of mechanical input across the tissue should drive a wider spread of downstream gene activity, producing a more heterogeneous fate landscape across the cushion.",
+    "decision_rule": "Spatial standard deviation of EndMT activity must be greater in Overflow than in Healthy, by at least 5% relative, before the difference counts as real.",
+    "primitive": "compare_metric",
+    "params": {
+      "metric": "endmt_sd_combined",
+      "case_a": "Overflow",
+      "case_b": "Healthy",
+      "op": "gt",
+      "min_rel_diff": 0.05
+    },
+    "passed": false,
+    "observed": {
+      "value_a": 0.06974500392486829,
+      "value_b": 0.1280856723800739,
+      "abs_diff": 0.05834066845520561,
+      "rel_diff": 0.45548161141777777,
+      "min_rel_diff": 0.05,
+      "ordering_ok": 0.0,
+      "margin_ok": 1.0
+    },
+    "summary": "FAIL: endmt_sd_combined: flow_U0p0540=0.069745 > flow_U0p0360=0.128086? relative difference 0.455 vs required 0.05 -> does not hold (ordering does not hold)",
+    "error": null,
+    "revision_of": null,
+    "revised_by": "H3b"
+  },
+  {
+    "id": "H4",
+    "claim": "In the overflow case, a large majority of the tissue sits above the stress level at which the gene network stops responding, so most of the cushion is mechanically saturated.",
+    "rationale": "The GRN normalizes von Mises stress against a 100 Pa ceiling and clips. Overflow peaks at 859 Pa. If a large fraction of nodes exceed 100 Pa, gene activity there is pinned regardless of the true local stress, which would make any gene-level comparison in this case partly an artifact of the normalization.",
+    "decision_rule": "More than 40% of the 11,615 solid nodes in the Overflow case must exceed 100 Pa von Mises stress.",
+    "primitive": "fraction_above",
+    "params": {
+      "field": "von_mises",
+      "case": "Overflow",
+      "threshold": 100.0,
+      "op": "gt",
+      "value": 0.4
+    },
+    "passed": true,
+    "observed": {
+      "fraction": 0.46259147653895827,
+      "threshold": 100.0,
+      "target": 0.4,
+      "n_above": 5373.0,
+      "n_used": 11615.0,
+      "n_dropped": 0.0
+    },
+    "summary": "PASS: 5373/11615 von_mises samples for flow_U0p0540 exceed 100 (fraction 0.4626); 0.4626 > 0.4 is true",
+    "error": null,
+    "revision_of": null,
+    "revised_by": null
+  },
+  {
+    "id": "H5",
+    "claim": "Faster flow suppresses cushion growth rather than promoting it: the share of tissue that never grows at all rises steeply with inlet velocity.",
+    "rationale": "Cushion height falls from 0.250 mm to 0.124 mm across the three cases, so something is holding growth back at high flow. If the mechanism is tissue being pushed to the growth floor rather than growing more slowly on average, the pinned fraction should order with inlet velocity.",
+    "decision_rule": "The fraction of cells pinned at the growth floor must strictly increase from Underflow to Healthy to Overflow.",
+    "primitive": "metric_ordering",
+    "params": {
+      "metric": "growth_pinned_low_fraction",
+      "cases": [
+        "Underflow",
+        "Healthy",
+        "Overflow"
+      ],
+      "direction": "increasing",
+      "strict": true
+    },
+    "passed": true,
+    "observed": {
+      "value_flow_U0p0180": 0.0005709517326189117,
+      "value_flow_U0p0360": 0.6127190478281874,
+      "value_flow_U0p0540": 0.7911634239536212,
+      "n_cases": 3.0,
+      "n_violations": 0.0,
+      "min_step": 0.17844437612543373,
+      "max_step": 0.6121480960955685
+    },
+    "summary": "PASS: growth_pinned_low_fraction across flow_U0p0180=0.000570952 -> flow_U0p0360=0.612719 -> flow_U0p0540=0.791163: strictly increasing with 0 violation(s) out of 2 step(s)",
+    "error": null,
+    "revision_of": null,
+    "revised_by": null
+  },
+  {
+    "id": "H6",
+    "claim": "In the overflow case, Notch signalling and TGF-beta signalling move together spatially, indicating the two pathways are co-activated by the same mechanical input.",
+    "rationale": "If both pathways read the same mechanical stimulus, their spatial patterns should correlate strongly. A weak correlation would suggest the model routes them through genuinely different inputs.",
+    "decision_rule": "Pearson correlation between NICD and SMAD23 activity across the Overflow grid must exceed 0.7.",
+    "primitive": "correlation",
+    "params": {
+      "field_x": "NICD_combined",
+      "field_y": "SMAD23_combined",
+      "case": "Overflow",
+      "op": "gt",
+      "value": 0.7,
+      "method": "pearson"
+    },
+    "passed": false,
+    "observed": {},
+    "summary": "COULD NOT RUN: unknown GRN field 'SMAD23_combined'; available fields are ['mech_norm', 'von_mises_pa', 'wss_dyn_cm2', 'wss_norm', 'EndMT_combined', 'EndMT_mech_only', 'EndMT_shear_only', 'NICD_combined', 'NICD_mech_only', 'NICD_shear_only', 'Snai1_combined', 'Snai1_mech_only', 'Snai1_shear_only', 'Snai2_combined', 'Snai2_mech_only', 'Snai2_shear_only', 'YAP_TAZ_combined', 'YAP_TAZ_mech_only', 'YAP_TAZ_shear_only']",
+    "error": "unknown GRN field 'SMAD23_combined'; available fields are ['mech_norm', 'von_mises_pa', 'wss_dyn_cm2', 'wss_norm', 'EndMT_combined', 'EndMT_mech_only', 'EndMT_shear_only', 'NICD_combined', 'NICD_mech_only', 'NICD_shear_only', 'Snai1_combined', 'Snai1_mech_only', 'Snai1_shear_only', 'Snai2_combined', 'Snai2_mech_only', 'Snai2_shear_only', 'YAP_TAZ_combined', 'YAP_TAZ_mech_only', 'YAP_TAZ_shear_only']",
+    "revision_of": null,
+    "revised_by": null
+  },
+  {
+    "id": "H3b",
+    "claim": "EndMT heterogeneity peaks in the healthy case, not the overflow case. Past the healthy flow range, raising flow further makes the tissue's gene response more uniform rather than less, because so much of the cushion is pinned at the mechanical ceiling that variation in stress stops producing variation in expression.",
+    "rationale": "The test refuted the original claim in the opposite direction: EndMT spatial SD is 0.128 in Healthy against 0.070 in Overflow, even though Overflow has the higher raw stress spread. The mechanism that reconciles this is saturation. 46% of Overflow nodes exceed the 100 Pa ceiling against 34% in Healthy, and every clipped node returns the identical pinned activity. Clipping half the domain to one value compresses the spatial variance. So the ordering I predicted from raw stress is inverted by the normalization sitting between stress and expression.",
+    "decision_rule": "Spatial standard deviation of EndMT activity must be greater in Healthy than in Overflow by at least 20% relative. This is the reverse of the original prediction, and a stricter margin, so it cannot pass on the same noise the first test would have.",
+    "primitive": "compare_metric",
+    "params": {
+      "metric": "endmt_sd_combined",
+      "case_a": "Healthy",
+      "case_b": "Overflow",
+      "op": "gt",
+      "min_rel_diff": 0.2
+    },
+    "passed": true,
+    "observed": {
+      "value_a": 0.1280856723800739,
+      "value_b": 0.06974500392486829,
+      "abs_diff": 0.05834066845520561,
+      "rel_diff": 0.8364852702288493,
+      "min_rel_diff": 0.2,
+      "ordering_ok": 1.0,
+      "margin_ok": 1.0
+    },
+    "summary": "PASS: endmt_sd_combined: flow_U0p0360=0.128086 > flow_U0p0540=0.069745? relative difference 0.836 vs required 0.2 -> holds",
+    "error": null,
+    "revision_of": "H3",
+    "revised_by": null
+  }
+]

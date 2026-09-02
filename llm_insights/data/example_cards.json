@@ -1,0 +1,133 @@
+[
+  {
+    "id": "H1",
+    "claim": "Wall shear stress on the cushion surface is substantially higher in the overflow case than in the healthy case at the final growth step.",
+    "rationale": "Overflow drives the inlet at 0.054 m/s against 0.036 m/s in the healthy case. If the cushion geometry were unchanged, Poiseuille scaling alone predicts a proportional rise in surface shear, so the agent expected a clear separation rather than a subtle one.",
+    "decision_rule": "SURVIVES if the 95th-percentile surface WSS in Overflow exceeds the healthy value by at least 10 percent at step 14; FALSIFIED otherwise.",
+    "primitive": "compare_scalar_between_cases",
+    "params": {
+      "cases": ["flow_U0p0540", "flow_U0p0360"],
+      "field": "wss_dyn_cm2",
+      "region": "surface",
+      "statistic": "p95",
+      "step": 14,
+      "min_ratio": 1.1
+    },
+    "passed": true,
+    "observed": {
+      "overflow_p95_wss_dyn_cm2": 41.73,
+      "healthy_p95_wss_dyn_cm2": 27.88,
+      "ratio": 1.4967,
+      "required_ratio": 1.1,
+      "n_surface_nodes_overflow": 1462.0,
+      "n_surface_nodes_healthy": 1455.0
+    },
+    "summary": "Overflow surface WSS is 1.50x the healthy value at the 95th percentile, clearing the pre-registered 1.10x margin.",
+    "error": null,
+    "revision_of": null,
+    "revised_by": null
+  },
+  {
+    "id": "H2",
+    "claim": "The location of peak von Mises stress along the cushion arc sits further upstream in the overflow case than in the healthy case.",
+    "rationale": "Higher inlet momentum should load the atrial-facing shoulder of the cushion earlier along the arc, moving the mechanical peak toward the upstream end rather than simply making it larger in place.",
+    "decision_rule": "SURVIVES if the normalized arc position of peak von Mises stress in Overflow is at least 0.05 lower (further toward the atrial end, s_norm = 0) than in Healthy; FALSIFIED otherwise.",
+    "primitive": "compare_arc_position_of_peak",
+    "params": {
+      "cases": ["flow_U0p0540", "flow_U0p0360"],
+      "field": "von_mises_pa",
+      "smoothing_window": 9,
+      "step": 14,
+      "min_shift": 0.05
+    },
+    "passed": true,
+    "observed": {
+      "overflow_s_norm_at_peak": 0.3712,
+      "healthy_s_norm_at_peak": 0.5124,
+      "shift_toward_atrial_end": 0.1412,
+      "required_shift": 0.05,
+      "overflow_peak_von_mises_pa": 138.4,
+      "healthy_peak_von_mises_pa": 96.2
+    },
+    "summary": "The peak sits 0.141 of arc length further upstream under overflow, nearly three times the pre-registered threshold.",
+    "error": null,
+    "revision_of": null,
+    "revised_by": null
+  },
+  {
+    "id": "H3",
+    "claim": "Spatial variability of EndMT expression across the cushion is highest in the overflow case, because the strongest mechanical loading produces the most heterogeneous regulatory response.",
+    "rationale": "Overflow produces both the largest shear and the largest von Mises range, so the agent reasoned that the widest spread of GRN inputs would translate into the widest spread of EndMT activity.",
+    "decision_rule": "SURVIVES if the interquartile range of combined-scenario EndMT activity is strictly greater in Overflow than in both Healthy and Underflow; FALSIFIED otherwise.",
+    "primitive": "compare_dispersion_between_cases",
+    "params": {
+      "cases": ["flow_U0p0540", "flow_U0p0360", "flow_U0p0180"],
+      "node": "EndMT",
+      "scenario": "combined",
+      "region": "all_nodes",
+      "statistic": "iqr",
+      "step": 14
+    },
+    "passed": false,
+    "observed": {
+      "overflow_iqr": 0.0412,
+      "healthy_iqr": 0.0733,
+      "underflow_iqr": 0.0329,
+      "overflow_rank_of_3": 2.0,
+      "mech_norm_saturated_fraction_overflow": 0.4413,
+      "mech_norm_saturated_fraction_healthy": 0.1067
+    },
+    "summary": "Variability is highest in the healthy case, not overflow: EndMT IQR is 0.073 in Healthy against 0.041 in Overflow. Overflow ranks second of three, so the claim as stated is contradicted.",
+    "error": null,
+    "revision_of": null,
+    "revised_by": "H4"
+  },
+  {
+    "id": "H4",
+    "claim": "Restricted to surface nodes and to the shear-only scenario, spatial variability of EndMT expression is highest in the overflow case.",
+    "rationale": "H3 was contradicted because 44 percent of overflow nodes saturate the mech_norm ceiling of 100 Pa, which compresses the combined-scenario spread across the whole mesh. That saturation is a property of the normalization, not of the biology, and it does not affect the shear channel or the surface band. The agent kept the direction of the original claim and narrowed its scope to the region and input pathway where the ceiling does not bind.",
+    "decision_rule": "SURVIVES if the interquartile range of shear-only EndMT activity, computed over surface nodes alone, is strictly greater in Overflow than in both Healthy and Underflow; FALSIFIED otherwise.",
+    "primitive": "compare_dispersion_between_cases",
+    "params": {
+      "cases": ["flow_U0p0540", "flow_U0p0360", "flow_U0p0180"],
+      "node": "EndMT",
+      "scenario": "shear_only",
+      "region": "surface",
+      "statistic": "iqr",
+      "step": 14
+    },
+    "passed": true,
+    "observed": {
+      "overflow_surface_iqr": 0.0688,
+      "healthy_surface_iqr": 0.0301,
+      "underflow_surface_iqr": 0.0194,
+      "overflow_rank_of_3": 1.0,
+      "ratio_to_next_highest": 2.2857,
+      "n_surface_nodes": 1462.0,
+      "wss_norm_saturated_fraction_overflow": 0.0813
+    },
+    "summary": "On the surface band and through the shear channel, overflow EndMT IQR is 0.069 against 0.030 in Healthy and 0.019 in Underflow. The narrowed claim survives.",
+    "error": null,
+    "revision_of": "H3",
+    "revised_by": null
+  },
+  {
+    "id": "H5",
+    "claim": "Cushion growth rate is monotonically related to inlet velocity across all three cases at every intermediate growth step.",
+    "rationale": "If growth is driven by the mechanical field, and the mechanical field scales with inlet velocity, the ordering of growth multipliers between cases should hold at every step rather than only at the end state.",
+    "decision_rule": "SURVIVES if the mean growth multiplier orders Underflow < Healthy < Overflow at each of steps 4, 9, 14, and 22; FALSIFIED otherwise.",
+    "primitive": "compare_growth_ordering",
+    "params": {
+      "cases": ["flow_U0p0180", "flow_U0p0360", "flow_U0p0540"],
+      "field": "g",
+      "steps": [4, 9, 14, 22],
+      "statistic": "mean"
+    },
+    "passed": false,
+    "observed": {},
+    "summary": "The test never reached a verdict: the requested step list runs past the end of the simulation, so the claim is neither supported nor contradicted.",
+    "error": "ValueError: step 22 out of range 0-14 (raised by Dataset.growth for case 'flow_U0p0180'). The run has 15 growth steps; the parameter set asked for a step that does not exist.",
+    "revision_of": null,
+    "revised_by": null
+  }
+]

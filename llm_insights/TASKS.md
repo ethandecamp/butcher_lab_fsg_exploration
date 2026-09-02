@@ -232,6 +232,197 @@ cold-start results before keeping it — a faster wrong surface is worse than a 
 
 ---
 
+---
+
+## TASK-002 — Field summary layer (arc-length compression)
+
+**Status:** IN REVIEW
+**Owner:** Cowork agent session "demo build", 2026-09-01
+**Size:** ~2 hours
+**Blocks:** TASK-004. Done.
+
+### Context
+Collapse the mechanics fields onto normalized arc length. ~94% of the solid mesh carries no
+wall shear stress and the cushion is a shallow cap, so the honest low-dimensional view of this
+simulation is 1-D in arc length. This is the layer that makes a prompt-sized description of
+27.4 M field values possible at all.
+
+### What was built
+- `src/llm_insights/summary/metrics.py` — 16 named scalar metrics, each carrying units and a
+  provenance string that travels with the number onto the cards. The registry is closed: a
+  hypothesis may only reference a metric that exists, which is what stops a model inventing a
+  plausible-sounding quantity nothing computes.
+- `src/llm_insights/summary/profiles.py` — 25-point linear resampling onto `s_norm`. Linear
+  and unsmoothed on purpose, so the `MECH_MAX` saturation plateau survives into the summary
+  rather than being rounded away.
+- `src/llm_insights/summary/briefing.py` — assembles the briefing: scalars, profiles, the
+  15-step morphology trajectory, a caveats section, and the admissibility protocol.
+
+### Evidence
+Briefing size, measured: **12,662 characters, ~3,165 tokens.**
+
+Resampling peak-position error, measured, in units of `s`:
+
+```
+Underflow  wss         raw 0.512  25pt 0.500  err 0.012
+Underflow  von_mises   raw 1.000  25pt 1.000  err 0.000
+Healthy    wss         raw 0.621  25pt 0.625  err 0.004
+Healthy    von_mises   raw 0.000  25pt 0.000  err 0.000
+Overflow   wss         raw 0.772  25pt 0.792  err 0.020
+Overflow   von_mises   raw 0.000  25pt 0.000  err 0.000
+```
+
+Max error 0.020 against a stated tolerance of 0.1, so **25 points is enough** and was not tuned
+after the fact.
+
+### Log
+- 2026-09-01 — Built and verified. Acceptance was answer preservation, per
+  `verification_philosophy`: 22 questions answered twice, once from the full arrays and once
+  from the summary alone, asserted to agree. All 22 agree. See TASK-005.
+- 2026-09-01 — Note for review: `von_mises_peak_s` returns 0.0 or 1.0 for all three cases. That
+  is not a bug — peak *surface* von Mises sits at the arc endpoints, where the cushion is
+  clamped to the channel floor. It does mean the metric is close to degenerate for hypothesis
+  purposes; an interior-peak variant would be more useful. Left as-is rather than quietly
+  redefined.
+
+---
+
+## TASK-003 — Executable test harness
+
+**Status:** IN REVIEW
+**Owner:** Cowork subagent, 2026-09-01
+**Size:** ~1.5 hours
+**Blocks:** TASK-004. Done.
+
+### What was built
+`src/llm_insights/harness/` — `spec.py` (`Hypothesis`, `TestSpec`, `Outcome`, strict parsing),
+`primitives.py` (six primitives + `arc_projection`), `runner.py` (`run`, `run_all`).
+
+Primitives: `compare_metric`, `metric_ordering`, `peak_location`, `fraction_above`,
+`correlation`, `profile_monotonic`.
+
+Two design points worth defending in review:
+- `run` never raises. A test that **could not run** stays clearly distinguishable from one that
+  ran and **failed** — conflating them would let a broken test masquerade as a refutation.
+- `compare_metric` takes a `min_rel_diff` guard so a claim cannot pass on floating-point noise,
+  and reports `ordering_ok` separately from `margin_ok`.
+
+### Evidence
+92 tests, all passing, 7 of them against the real data tree so schema drift is caught. NaN
+handling is tested explicitly — interior nodes are NaN for WSS and silently coercing them to 0
+would be a serious correctness bug.
+
+### Log
+- 2026-09-01 — Delivered green. Deviations from the original sketch, all flagged rather than
+  silent: `step` parameters added to `fraction_above` and `profile_monotonic` (both quantities
+  are per-step); `correlation` raises rather than fails on fewer than 3 usable pairs or a
+  constant column, because that is a "could not run", not a refutation.
+
+---
+
+## TASK-004 — Agent loop, generator backends, and hypothesis cards
+
+**Status:** IN REVIEW
+**Owner:** Cowork subagents + session, 2026-09-01
+**Size:** ~2 hours
+
+### What was built
+- `src/llm_insights/agent/generator.py` — `AnthropicGenerator` (stdlib `urllib`, no SDK
+  needed), `TranscriptGenerator` (replay), `EchoGenerator` (offline stub). The system prompt
+  enumerates the six primitives by **introspecting `PRIMITIVES`**, so the prompt cannot drift
+  out of sync with the code.
+- `src/llm_insights/agent/loop.py` — propose → validate → run → narrow failures → assemble.
+  An invalid proposal is **recorded as rejected and counted**, never silently dropped.
+- `src/llm_insights/agent/run.py` — the CLI.
+- `src/llm_insights/cards/` — card model plus markdown and self-contained HTML report.
+
+### Evidence
+Demo run, `data/demo_transcript.json`, question *"What differs between the healthy and overflow
+cases, and why?"*:
+
+```
+  proposed        7
+  admissible      7
+  rejected        0
+  survived        5
+  falsified       0
+  narrowed        1
+  could not run   1
+```
+
+Cards: H1, H2, H4, H5 survived; **H3 falsified and narrowed to H3b, which survived**; H6 could
+not run because it asked about `SMAD23`, one of the 18 GRN nodes that are simulated but never
+written out — the system refuses rather than inventing an answer.
+
+### Log
+- 2026-09-01 — The API key is read from the environment per request and never stored on the
+  instance, so `repr()`, `vars()`, the report meta and the transcript structurally cannot
+  contain it. Four tests assert this.
+- 2026-09-01 — A replay always reports itself as a replay in the provenance block, and carries
+  the originating model. A recorded run cannot be presented as a live call.
+
+---
+
+## TASK-005 — Answer-preservation verification
+
+**Status:** IN REVIEW
+**Owner:** Cowork agent session, 2026-09-01
+**Size:** ~1 hour
+**Blocks:** nothing, but it is what makes every other layer's output admissible.
+
+### Context
+Per `verification_philosophy`, a compression is correct if and only if it preserves the answers
+to the questions people actually ask. This task tests that directly rather than assuming it.
+
+### What was built
+`tests/test_summary.py`. 22 questions, each with two independent implementations: `raw(ds)` uses
+the full arrays; `summary(ds)` is allowed to touch only the 25-point profiles and the scalar
+metric registry. Answers must agree — exactly for categorical answers, within a stated tolerance
+for continuous ones.
+
+Plus resampling fidelity (peak position, no interpolation overshoot, plateau survival), briefing
+integrity (size, every metric named, units and provenance present, saturation disclosed), and a
+**negative control**: a deliberately corrupted summary must fail the same checks. A verification
+suite that passes a corrupted input is not verifying anything.
+
+### Evidence
+```
+Ran 177 tests in 0.833s
+OK
+```
+All 22 answer-preservation questions agree. Command:
+`cd llm_insights/src && python3 -m unittest discover -s ../tests -t ..`
+
+### Log
+- 2026-09-01 — 13 of the 177 are this suite. The negative control confirms sensitivity: 3-point
+  compression moves a peak by more than the 0.1 tolerance, and a 20% metric perturbation flips a
+  categorical answer.
+
+---
+
+## TASK-006 — Reconcile the two style-guide deviations
+
+**Status:** TODO
+**Owner:** unassigned
+**Size:** ~30 minutes
+
+### Context
+Two rules in `STYLE_GUIDE.md` were knowingly broken, because the sandbox that built this had no
+package installs available. Ethan's venv now has both packages, so these can be fixed properly.
+
+### Acceptance criteria
+1. Replace stdlib `logging` with loguru throughout `src/llm_insights/`, keeping the lazy brace
+   form (`LOG.debug("loaded {}", name)`), never f-strings in log calls.
+2. Decide whether to keep `unittest.TestCase` classes or convert to pytest-native functions.
+   They run unchanged under pytest today, so this is a style call, not a correctness one — say
+   which and why in the log rather than just doing it.
+3. `ruff check` and `ruff format` clean; all 177 tests still pass.
+4. Note that ~59 `ANN401` findings exist across the codebase, all on deliberately duck-typed
+   parameters. Decide once whether to add a scoped ignore with a reason or annotate them, and
+   record the decision.
+
+---
+
 ## Open questions
 
 Questions for Ethan or Dan that are not scoped to a single task. Add, don't delete.
@@ -263,3 +454,46 @@ Questions for Ethan or Dan that are not scoped to a single task. Add, don't dele
     also now load-bearing for *recovery*, not just for commits: reverting an accidental edit to
     the model with `git checkout` restores real file content on an LFS-enabled machine and
     130-byte pointer stubs on one without. See the TASK-000 incident log.
+
+- **Is `MECH_MAX = 100.0` Pa deliberate? (restated with the demo's evidence, 2026-09-01.)**
+  The demo's headline card turns on this. EndMT spatial SD comes out **0.128 in Healthy against
+  0.070 in Overflow**, i.e. the *healthy* case is roughly twice as heterogeneous, even though
+  Overflow has the larger raw stress spread. The mechanism is the clip: 46.3% of Overflow nodes
+  exceed 100 Pa (33.7% Healthy, full-mesh denominator) and every clipped node returns the
+  identical pinned activity, compressing spatial variance. So an apparent biological result —
+  "high flow homogenises the fate landscape" — is at least partly a property of the
+  normalization. **Ask Dan whether the ceiling is intended physiological normalization or
+  exhausted dynamic range**, and what the intended YAP/TAZ half-max in Pa is. Do not patch it.
+- **Saturation fractions are grid-dependent, and both numbers are in circulation.**
+  On the full 11,615-node mesh the exceedance is 0.02% / 33.7% / 46.3%; on the 80% GRN grid it
+  is 0.0% / 29.6% / 44.0%. Both are correct for their denominator. Any statement of the form
+  "N% of the domain saturates" needs to name the grid. `summary/metrics.py` exposes both and
+  documents the difference, but the earlier write-up quoted only the 80%-grid figure.
+- **What is `peak_xnorm` in `FSG Results/comparison_figures/metrics_summary.csv`?**
+  The file contains a normalized peak-position column and several arc-length figures
+  (`arclength_profiles.png`, `wss_arclength_evolution_3d.png`). **The script that generated them
+  is not in the handoff** — no `.py` references `peak_xnorm` or writes that CSV. This is prior
+  art for exactly the layer TASK-002 built, so its arc-length convention matters. Ask Dan for
+  the script, or at least for the convention.
+- **The shipped runs are not reproducible from the current source.** `g_field.npy` has an exact
+  floor of 0.5 (61.3% of cells pinned there in the healthy case at step 14), while
+  `solid_solver.py:51` sets `g_min = 0.3` and `run_fsg.py:450` overrides nothing. Rerunning will
+  not reproduce these results. Ask whether 0.5 was intentional and, if so, get the config that
+  produced these runs recorded somewhere.
+- **`plot_grn_hypothesis_trends.py` crashes as shipped.** Line 333 reads
+  `AHA GRN Plots/comparison_figures/metrics_summary.csv`; the file actually lives under
+  `FSG Results/comparison_figures/`. One-line path fix, but it is Dan's file — report, do not
+  patch.
+- **Do the `*_combined` GRN columns treat interior shear as 0 or as missing?** They are
+  non-NaN at interior nodes while `*_shear_only` is NaN there, which implies shear = 0 was fed.
+  Encoding "this tissue never touches the fluid" as "the flow here is zero" gives
+  `DLL_inf = NOT(hill(0)) = 1.0` pinned across the whole interior — 94% of the mesh. Worth
+  confirming that is intended.
+- **Would Dan sit for a blind evaluation of generated hypotheses?** Now concrete enough to ask:
+  show him cards with the verdicts hidden and ask which he would have believed. That converts
+  the demo into a measurable result, which is what the project needs for a resume claim.
+- **Highest-value unlock: `solid_fields.h5`.** Per-step full-mesh stress exists for all three
+  cases inside the `.h5` files, but `extracted_fields/` was only ever generated for
+  `flow_U0p0360`, so the current tooling sees full-mesh stress at step 14 only. Reading the `.h5`
+  directly with h5py would give the full 15-step x 3-case stress evolution and roughly triple the
+  hypothesis space. No new simulation runs required.
