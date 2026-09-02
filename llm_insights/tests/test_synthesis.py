@@ -1165,3 +1165,54 @@ class TestToleranceFloor(unittest.TestCase):
             ["858.9761000000000"],
         )
 
+
+class TestTheHeadlineAnswersTheQuestion(unittest.TestCase):
+    """The lede is the answer to what was asked, not a digest of the report.
+
+    A run is started with a question on the command line. The report's own verdict
+    table says what happened to each claim; what it never says in words is what the
+    answer to that question turned out to be. That is the headline's job, and it is
+    the only place in the whole report where the question gets answered in prose.
+    """
+
+    def test_the_system_prompt_frames_the_task_as_answering(self):
+        """Framing first: the model is told a question was asked and is to answer it."""
+        self.assertIn("answer that question", SYNTHESIS_SYSTEM_PROMPT)
+
+    def test_the_headline_rule_demands_a_direct_answer(self):
+        """Not 'the most important finding' -- the answer, in the question's terms."""
+        self.assertIn("ANSWER THE QUESTION", SYNTHESIS_SYSTEM_PROMPT)
+        self.assertIn("in its own terms", SYNTHESIS_SYSTEM_PROMPT)
+
+    def test_the_headline_rule_rejects_a_report_digest(self):
+        """The failure mode worth naming explicitly in the prompt."""
+        self.assertIn("Five claims were tested and four survived", SYNTHESIS_SYSTEM_PROMPT)
+        self.assertIn("Lead with the answer", SYNTHESIS_SYSTEM_PROMPT)
+
+    def test_the_summary_carries_the_evidence_for_that_answer(self):
+        """The long part supports the headline rather than restating it."""
+        self.assertIn("evidence for that answer", SYNTHESIS_SYSTEM_PROMPT)
+
+    def test_an_unanswerable_question_gets_an_honest_partial_answer(self):
+        """Neither a confident answer the cards do not support, nor a refusal."""
+        self.assertIn("not settled", SYNTHESIS_SYSTEM_PROMPT)
+        self.assertIn("never a refusal to answer at all", SYNTHESIS_SYSTEM_PROMPT)
+
+    def test_the_user_turn_leads_with_the_question(self):
+        """The question must reach the model before the results it is answered from."""
+        prompt = build_synthesis_prompt("Does flow suppress growth?", [make_card()])
+        self.assertLess(prompt.index("QUESTION"), prompt.index("RESULTS ("))
+        self.assertIn("Does flow suppress growth?", prompt)
+
+    def test_the_user_turn_asks_for_the_answer_explicitly(self):
+        """Restated at the point of asking, not only in the system prompt."""
+        prompt = build_synthesis_prompt("Does flow suppress growth?", [make_card()])
+        self.assertIn("Answer the question at the top of this message", prompt)
+        self.assertIn("which answers it directly", prompt)
+
+    def test_the_retry_prompt_still_asks_for_the_answer(self):
+        """A retry must not quietly become a different task."""
+        prompt = build_synthesis_prompt("Does flow suppress growth?", [make_card()], ["2.7"])
+        self.assertIn("Answer the question at the top of this message", prompt)
+        self.assertIn("2.7", prompt)
+

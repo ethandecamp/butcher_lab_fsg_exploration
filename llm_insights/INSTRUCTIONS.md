@@ -298,8 +298,12 @@ PYTHONPATH=src python3 -m llm_insights.agent.run --question "..." --synthesize -
 ```
 
 Off by default. When on, one extra model call is made **after every claim has already been
-verified**, asking for two things: a one-or-two-sentence **headline** giving the single most
-important finding, and a three-to-six-sentence **summary** expanding on it. Both render at the
+verified**, asking for two things: a one-or-two-sentence **headline** that answers the
+`--question` you asked, directly and in its own terms, and a three-to-six-sentence **summary**
+giving the evidence for that answer. The verdict table says what happened to each claim; the
+headline is the only place in the report where the question itself gets answered in prose. If
+the verified results do not settle it, the headline says what they do establish and that the
+question is open — an honest partial answer rather than a confident one the cards cannot carry. Both render at the
 **bottom** of the report, below the claims they describe, fenced and labelled as narration
 rather than as a result. The headline sits directly above the summary, so a reader who stops
 after one line still has the run's actual finding.
