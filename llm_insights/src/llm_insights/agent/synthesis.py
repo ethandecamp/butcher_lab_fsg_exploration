@@ -44,6 +44,18 @@ LOG = logging.getLogger(__name__)
 MIN_SENTENCES: Final[int] = 3
 MAX_SENTENCES: Final[int] = 6
 
+#: Sentence budget for the one-line lede that sits above the summary. A reader who
+#: stops after this should still have the run's actual finding, not a description of
+#: the report's structure.
+HEADLINE_MIN_SENTENCES: Final[int] = 1
+HEADLINE_MAX_SENTENCES: Final[int] = 2
+
+#: Labels the model is asked to put in front of each part. Parsing on labels rather
+#: than on paragraph breaks keeps a model that writes one long paragraph from silently
+#: losing its headline into the body.
+HEADLINE_LABEL: Final[str] = "HEADLINE:"
+SUMMARY_LABEL: Final[str] = "SUMMARY:"
+
 #: System prompt for the narration call. Deliberately *not*
 #: :func:`llm_insights.agent.generator.build_system_prompt`, which orders strict JSON
 #: and no prose -- exactly the opposite of what this call wants.
@@ -57,8 +69,18 @@ SYNTHESIS_SYSTEM_PROMPT: Final[str] = (
     "who will not read the table underneath, what this run found.\n"
     "\n"
     "RULES\n"
-    f"1. Write {MIN_SENTENCES} to {MAX_SENTENCES} sentences of plain English prose. No "
-    "markdown, no headings, no bullet points, no JSON, no code fences.\n"
+    "1. Write exactly two labelled parts, in this order and nothing else:\n"
+    f"   {HEADLINE_LABEL} {HEADLINE_MIN_SENTENCES} to {HEADLINE_MAX_SENTENCES} "
+    "sentences giving the single most important thing this run found. State the "
+    "finding itself, not what the report contains: 'Higher flow suppressed growth "
+    "across the whole cushion' is a headline, 'Five claims were tested and four "
+    "survived' is not. If one claim matters more than the rest, that claim is the "
+    "headline.\n"
+    f"   {SUMMARY_LABEL} {MIN_SENTENCES} to {MAX_SENTENCES} sentences expanding on it. "
+    "The summary must stand on its own; do not open it with 'additionally' or "
+    "otherwise write it as a continuation of the headline.\n"
+    "   Plain English prose in both. No markdown, no further headings, no bullet "
+    "points, no JSON, no code fences.\n"
     "2. Use only numbers that appear in the 'observed' block of some card. Do not "
     "round to a figure that is not there, do not add up numbers to make a new one, "
     "and do not state a number you were not given. Every numeral you write is checked "
@@ -76,7 +98,7 @@ SYNTHESIS_SYSTEM_PROMPT: Final[str] = (
     "where the raw spread grows -- say plainly that the effect may be partly an "
     "artefact of that ceiling rather than biology.\n"
     "6. Do not speculate beyond the cards, do not recommend further work, and do not "
-    "describe your own reasoning. Return the summary text and nothing else."
+    "describe your own reasoning. Return the two labelled parts and nothing else."
 )
 
 #: Numeric literals: an optional sign, digits with optional thousands separators, an
@@ -89,6 +111,12 @@ _NUMERAL_RE: Final[re.Pattern[str]] = re.compile(
 #: identifier rather than a number: ``H3``, ``wss_dyn_cm2``, ``flow_U0p0180``.
 _IDENTIFIER_PREFIX: Final[str] = "_."
 
+#: Floor on the match tolerance, as a fraction of the value's magnitude. Absorbs the
+#: last-few-ulp differences between two correct implementations of the same statistic,
+#: or the same one on two machines, without letting an invented figure through: nine
+#: significant figures of agreement between unrelated quantities does not occur here.
+_RELATIVE_FLOOR: Final[float] = 1e-9
+
 #: Fields whose text counts as a place a numeral may legitimately come from. These are
 #: the parts of a card the model itself wrote before any test ran, plus the rule the
 #: run was held to; a number quoted out of one of them is quoting the record.
@@ -100,8 +128,12 @@ class SynthesisResult:
     """What one narration attempt produced, and why it did or did not render.
 
     Attributes:
-        blurb: The text to render, or None when nothing may be rendered. This is the
-            only field the renderers see.
+        blurb: The summary text to render, or None when nothing may be rendered.
+        headline: The one-line lede that sits above ``blurb``, or None when the model
+            did not label one. It is suppressed together with ``blurb`` and never on
+            its own: the containment check runs over the whole reply, so a headline
+            surviving a rejected summary would mean showing the unchecked half of a
+            reply whose other half was rejected.
         status: One line for the report's provenance block, e.g. ``"rendered"`` or
             ``"suppressed: ..."``. Always set.
         attempted: True if a model call was actually made.
@@ -115,6 +147,7 @@ class SynthesisResult:
 
     blurb: str | None
     status: str
+    headline: str | None = None
     attempted: bool = False
     suppressed: bool = False
     violations: tuple[str, ...] = ()
@@ -231,8 +264,8 @@ def build_synthesis_prompt(
             "",
         ]
     lines.append(
-        f"Write the {MIN_SENTENCES}-to-{MAX_SENTENCES} sentence summary now, following "
-        "the rules in your instructions. Return only the summary text."
+        f"Write the two labelled parts now -- {HEADLINE_LABEL} then {SUMMARY_LABEL} -- "
+        "following the rules in your instructions. Return only those two parts."
     )
     return "\n".join(lines)
 
@@ -270,19 +303,33 @@ def _numerals(text: str) -> list[tuple[str, float]]:
     return found
 
 
-def _tolerance(token: str) -> float:
-    """Return the tolerance implied by a numeral's own displayed precision.
+def _tolerance(token: str, value: float = 0.0) -> float:
+    """Return the tolerance a numeral must be matched within.
 
-    ``"1.5"`` is written to one decimal, so it stands for anything in ``[1.45, 1.55)``
-    and matches an observed ``1.4967``. ``"5"`` is written to none, so it stands for
-    ``[4.5, 5.5)``. This is what lets a summary round without being accused of
-    inventing, while still catching a figure that is simply not in the data.
+    Normally this is the precision the numeral itself displays: ``"1.5"`` is written to
+    one decimal, so it stands for anything in ``[1.45, 1.55)`` and matches an observed
+    ``1.4967``; ``"5"`` stands for ``[4.5, 5.5)``. That is what lets a summary round
+    without being accused of inventing, while still catching a figure that is simply
+    not in the data.
+
+    Displayed precision alone is too strict at the top end. A model that copies an
+    observed value verbatim quotes all seventeen significant figures, which asks for
+    agreement to about 5e-17 -- tighter than floating point is reproducible. This bit
+    a real run: a summary quoted ``r = 0.6369388762466359`` from a card computed with
+    ``scipy.stats``, and re-checking it against the same correlation computed in numpy
+    gave ``0.6369388762466373``. Both are correct, they differ by 2e-15 relative, and
+    the summary was suppressed for inventing a number that was in fact its own. So the
+    tolerance is floored at :data:`_RELATIVE_FLOOR` of the value's magnitude. Two
+    genuinely different quantities in this dataset agreeing to nine significant figures
+    does not happen, so the check loses nothing it was catching.
 
     Args:
         token: The numeral as it was written.
+        value: The numeral's value, used for the relative floor.
 
     Returns:
-        Half a unit in the token's last displayed place, in the token's own units.
+        The larger of half a unit in the token's last displayed place and
+        :data:`_RELATIVE_FLOOR` times the magnitude of ``value``.
     """
     body = token.rstrip("%").replace(",", "").lstrip("+-")
     exponent = 0
@@ -294,7 +341,8 @@ def _tolerance(token: str) -> float:
             exponent = 0
         body = mantissa
     decimals = len(body.split(".")[1]) if "." in body else 0
-    return 0.5 * (10.0**-decimals) * (10.0**exponent)
+    displayed = 0.5 * (10.0**-decimals) * (10.0**exponent)
+    return max(displayed, abs(value) * _RELATIVE_FLOOR)
 
 
 def _supported_values(cards: Sequence[Card]) -> tuple[set[float], set[str]]:
@@ -361,7 +409,7 @@ def check_numeric_containment(blurb: str, cards: Sequence[Card]) -> list[str]:
         is_whole = "." not in token and "%" not in token and "e" not in token.lower()
         if is_whole and 0 <= value <= n_cards:
             continue
-        tol = _tolerance(token)
+        tol = _tolerance(token, value)
         if any(abs(candidate - value) <= tol for candidate in values):
             continue
         if token.endswith("%") and any(
@@ -394,7 +442,38 @@ def _clean(raw: Any) -> str:
         newline = text.find("\n")
         if newline != -1 and text[:newline].strip().lower() in {"", "text", "markdown"}:
             text = text[newline + 1 :]
-    return " ".join(text.split())
+    # Collapse horizontal whitespace but keep line breaks: the labels the reply is
+    # split on live at the start of a line, and flattening the reply to one line first
+    # would make an unlabelled body indistinguishable from a labelled one.
+    return "\n".join(" ".join(line.split()) for line in text.splitlines()).strip()
+
+
+def split_narration(text: str) -> tuple[str | None, str]:
+    """Split a labelled reply into its headline and its summary.
+
+    A model that ignores the labels must not lose its work, so an unlabelled reply
+    becomes the summary with no headline rather than an error: the long summary is the
+    part that existed first and the part a reader most needs.
+
+    Args:
+        text: The cleaned reply, with line structure preserved.
+
+    Returns:
+        A tuple ``(headline_or_None, summary)``. The summary is empty only when the
+        reply was empty.
+    """
+    head_at = text.find(HEADLINE_LABEL)
+    body_at = text.find(SUMMARY_LABEL)
+    if head_at == -1 and body_at == -1:
+        return None, " ".join(text.split())
+    if body_at == -1:  # headline labelled, body not: everything after the label is one
+        tail = text[head_at + len(HEADLINE_LABEL) :]
+        return None, " ".join(tail.split())
+    if head_at == -1 or head_at > body_at:
+        return None, " ".join(text[body_at + len(SUMMARY_LABEL) :].split())
+    headline = " ".join(text[head_at + len(HEADLINE_LABEL) : body_at].split())
+    summary = " ".join(text[body_at + len(SUMMARY_LABEL) :].split())
+    return (headline or None), summary
 
 
 def _ask(generator: Any, prompt: str) -> tuple[str, str | None]:
@@ -471,7 +550,12 @@ def synthesize(
     violations = check_numeric_containment(text, cards)
     if not violations:
         LOG.info("the narrative summary passed the numeric containment check")
-        return SynthesisResult(blurb=text, status="rendered", attempted=True, raw=text)
+        headline, summary = split_narration(text)
+        if headline is None:
+            LOG.warning("the reply carried no %s label; rendering the summary alone", HEADLINE_LABEL)
+        return SynthesisResult(
+            blurb=summary, headline=headline, status="rendered", attempted=True, raw=text
+        )
 
     LOG.warning(
         "the narrative summary used %d numeral(s) the cards do not support: %s",
@@ -488,8 +572,10 @@ def synthesize(
     retry_violations = check_numeric_containment(retry_text, cards)
     if not retry_violations:
         LOG.info("the retried narrative summary passed the numeric containment check")
+        headline, summary = split_narration(retry_text)
         return SynthesisResult(
-            blurb=retry_text,
+            blurb=summary,
+            headline=headline,
             status="rendered after one retry",
             attempted=True,
             retried=True,
@@ -575,6 +661,11 @@ def recorded_blurb(entries: Sequence[Mapping[str, Any]]) -> str | None:
 
 
 __all__ = [
+    "HEADLINE_LABEL",
+    "HEADLINE_MAX_SENTENCES",
+    "HEADLINE_MIN_SENTENCES",
+    "SUMMARY_LABEL",
+    "split_narration",
     "MAX_SENTENCES",
     "MIN_SENTENCES",
     "SYNTHESIS_SYSTEM_PROMPT",

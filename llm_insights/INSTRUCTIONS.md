@@ -298,17 +298,32 @@ PYTHONPATH=src python3 -m llm_insights.agent.run --question "..." --synthesize -
 ```
 
 Off by default. When on, one extra model call is made **after every claim has already been
-verified**, asking for three to six sentences of plain English about what the run found. It is
-rendered at the top of the report, fenced, and labelled as narration rather than as a result.
+verified**, asking for two things: a one-or-two-sentence **headline** giving the single most
+important finding, and a three-to-six-sentence **summary** expanding on it. Both render at the
+**bottom** of the report, below the claims they describe, fenced and labelled as narration
+rather than as a result. The headline sits directly above the summary, so a reader who stops
+after one line still has the run's actual finding.
+
+It is one call, not two: the model returns both parts under `HEADLINE:` and `SUMMARY:` labels,
+which are split here. A reply that ignores the labels becomes a summary with no headline rather
+than an error — losing the long summary over a missing label would be the wrong trade, and it
+keeps transcripts recorded before this feature replayable.
 
 It cannot change a verdict. The harness is never re-entered, and the summary is written from the
 finished cards.
 
-Every number in the summary is checked against the cards before it renders. A numeral is allowed
-only if it matches a value in some card's `observed` (rounding is fine — `0.128` is accepted for
-an observed `0.12808567238007387`), appears verbatim in a claim or decision rule, or is a small
-integer no bigger than the number of cards. **Anything else and the summary is not rendered at
-all.** One retry is spent naming the offending numerals back to the model; if that also fails the
+Every number in **both parts** is checked against the cards before either renders. A numeral is
+allowed only if it matches a value in some card's `observed` (rounding is fine — `0.128` is
+accepted for an observed `0.12808567238007387`), appears verbatim in a claim or decision rule,
+or is a small integer no bigger than the number of cards. **Anything else and neither part is
+rendered.** The headline gets no exemption; it is model prose like the rest.
+
+Matching allows a small relative slack (1e-9) on top of the numeral's own displayed precision.
+That is not looseness. A summary copying an observed value verbatim quotes all seventeen
+significant figures, which would otherwise demand bit-exact agreement, and two correct
+implementations of the same statistic differ in the last few ulps. A real run was suppressed
+that way — it quoted its own card's `r` and was told the number was invented — before the floor
+existed. One retry is spent naming the offending numerals back to the model; if that also fails the
 summary is suppressed permanently and the provenance block says so:
 
 ```

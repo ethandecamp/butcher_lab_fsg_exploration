@@ -42,6 +42,7 @@ from llm_insights.agent.synthesis import (
     SYNTHESIS_SYSTEM_PROMPT,
     build_synthesis_prompt,
     check_numeric_containment,
+    split_narration,
     supports_synthesis,
     synthesize,
     transcript_entry,
@@ -814,7 +815,7 @@ class TestCliSynthesis(unittest.TestCase):
 
     def test_the_summary_call_replaces_the_json_system_prompt(self):
         """The hypothesis system prompt orders strict JSON, which would fight this call."""
-        self._serve({"sentence summary": "The 1 claim survived."})
+        self._serve({"RESULTS (": "The 1 claim survived."})
         outcome = synthesize(self.gen, "q", self.cards)
         self.assertEqual(outcome.blurb, "The 1 claim survived.")
         argv = self.argvs[0]
@@ -822,7 +823,7 @@ class TestCliSynthesis(unittest.TestCase):
 
     def test_the_summary_call_keeps_every_guardrail(self):
         """One turn, no tools, the budget cap, and the empty scratch directory."""
-        self._serve({"sentence summary": "The 1 claim survived."})
+        self._serve({"RESULTS (": "The 1 claim survived."})
         synthesize(self.gen, "q", self.cards)
         argv = self.argvs[0]
         self.assertEqual(argv[argv.index("--max-turns") + 1], "1")
@@ -832,7 +833,7 @@ class TestCliSynthesis(unittest.TestCase):
 
     def test_it_is_counted_against_the_call_ceiling(self):
         """The summary is a call like any other and is accounted like any other."""
-        self._serve({"sentence summary": "The 1 claim survived."})
+        self._serve({"RESULTS (": "The 1 claim survived."})
         before = self.gen.calls
         synthesize(self.gen, "q", self.cards)
         self.assertEqual(self.gen.calls, before + 1)
@@ -845,7 +846,7 @@ class TestCliSynthesis(unittest.TestCase):
         the ceiling is checked first, so the worst case is a missing paragraph, never
         an extra call. The failure is caught and the verified results still stand.
         """
-        self._serve({"sentence summary": "The 1 claim survived."})
+        self._serve({"RESULTS (": "The 1 claim survived."})
         self.gen.calls = self.gen.max_calls
         outcome = synthesize(self.gen, "q", self.cards)
         self.assertEqual(self.argvs, [], "no subprocess may be launched at the ceiling")
@@ -866,7 +867,7 @@ class TestCliSynthesis(unittest.TestCase):
             {
                 "Propose exactly": json.dumps(failing),
                 "narrower claim": json.dumps(successor),
-                "sentence summary": "All 5 claims were narrowed.",
+                "RESULTS (": "All 5 claims were narrowed.",
             }
         )
         result = investigate(self.ds, self.gen, "briefing", "q", n=5)
@@ -965,3 +966,202 @@ class TestMinRelDiffFloor(unittest.TestCase):
 
 if __name__ == "__main__":  # pragma: no cover - direct invocation
     unittest.main()
+
+
+class TestSplitNarration(unittest.TestCase):
+    """Parsing the two labelled parts out of one reply."""
+
+    def test_both_labels_split_cleanly(self):
+        """The ordinary case."""
+        headline, summary = split_narration(
+            "HEADLINE: Flow suppresses growth.\nSUMMARY: The longer version. And more."
+        )
+        self.assertEqual(headline, "Flow suppresses growth.")
+        self.assertEqual(summary, "The longer version. And more.")
+
+    def test_an_unlabelled_reply_becomes_the_summary(self):
+        """A model that ignores the labels must not lose its work."""
+        headline, summary = split_narration("just some prose with no labels")
+        self.assertIsNone(headline)
+        self.assertEqual(summary, "just some prose with no labels")
+
+    def test_a_summary_label_alone_still_parses(self):
+        """Half-compliance keeps the half that matters."""
+        headline, summary = split_narration("SUMMARY: only a body here.")
+        self.assertIsNone(headline)
+        self.assertEqual(summary, "only a body here.")
+
+    def test_a_headline_label_alone_is_treated_as_the_body(self):
+        """With nothing to expand on, one paragraph is the summary, not a lede."""
+        headline, summary = split_narration("HEADLINE: a lede with no body after it")
+        self.assertIsNone(headline)
+        self.assertEqual(summary, "a lede with no body after it")
+
+    def test_labels_out_of_order_keep_the_summary(self):
+        """A reply that leads with SUMMARY is not silently mangled."""
+        headline, summary = split_narration("SUMMARY: the body.\nHEADLINE: the lede.")
+        self.assertIsNone(headline)
+        self.assertIn("the body.", summary)
+
+    def test_multi_line_parts_are_collapsed(self):
+        """Each part renders as one paragraph in both output formats."""
+        headline, summary = split_narration(
+            "HEADLINE: one\nline lede\nSUMMARY: a body\nover lines"
+        )
+        self.assertEqual(headline, "one line lede")
+        self.assertEqual(summary, "a body over lines")
+
+
+class TestHeadlineEndToEnd(unittest.TestCase):
+    """The headline through synthesize() and out into both renderers."""
+
+    def setUp(self) -> None:
+        """One card, and a backend that returns a labelled reply."""
+        self.cards = [make_card()]
+        self.labelled = (
+            "HEADLINE: The single claim held up.\n"
+            "SUMMARY: The claim survived its pre-registered test at a ratio of 1.4967. "
+            "Nothing was refuted. There is not much more to say."
+        )
+
+    def _generator(self, reply):
+        """Return a stub backend whose synthesize() returns ``reply``."""
+
+        class _Stub:
+            name = "stub"
+
+            def propose(self, briefing, question, n):
+                return []
+
+            def narrow(self, briefing, failed, outcome):
+                return None
+
+            def synthesize(self, prompt):
+                del prompt
+                return reply
+
+        return _Stub()
+
+    def test_synthesize_splits_the_reply(self):
+        """Both parts come back on the result."""
+        outcome = synthesize(self._generator(self.labelled), "Q", self.cards)
+        self.assertEqual(outcome.headline, "The single claim held up.")
+        self.assertIn("survived its pre-registered test", outcome.blurb)
+        self.assertNotIn("HEADLINE", outcome.blurb)
+
+    def test_an_unlabelled_reply_still_renders_a_summary(self):
+        """Backwards compatible: the old shape keeps working, headline just absent."""
+        outcome = synthesize(self._generator("A plain paragraph with 1.4967 in it."), "Q", self.cards)
+        self.assertIsNone(outcome.headline)
+        self.assertEqual(outcome.blurb, "A plain paragraph with 1.4967 in it.")
+
+    def test_a_bad_number_anywhere_suppresses_both_parts(self):
+        """The check runs over the whole reply; half a rejected reply is not shown."""
+        outcome = synthesize(
+            self._generator("HEADLINE: It held.\nSUMMARY: It held at p=0.003."),
+            "Q",
+            self.cards,
+            allow_retry=False,
+        )
+        self.assertIsNone(outcome.blurb)
+        self.assertIsNone(outcome.headline)
+        self.assertTrue(outcome.suppressed)
+
+    def test_a_number_in_the_headline_is_checked_too(self):
+        """The lede is model prose like any other and gets no exemption."""
+        outcome = synthesize(
+            self._generator("HEADLINE: It held at 99.9 percent.\nSUMMARY: It held."),
+            "Q",
+            self.cards,
+            allow_retry=False,
+        )
+        self.assertTrue(outcome.suppressed)
+        self.assertIn("99.9", outcome.violations)
+
+    def test_markdown_puts_the_headline_above_the_summary(self):
+        """Order on the page: heading, lede, disclaimer, body."""
+        text = render_markdown(self.cards, "Q", {}, "the body", "the lede")
+        self.assertIn("**the lede**", text)
+        self.assertLess(text.index("**the lede**"), text.index("the body"))
+        self.assertLess(text.index(NARRATIVE_HEADING), text.index("**the lede**"))
+
+    def test_markdown_without_a_headline_is_the_previous_output(self):
+        """Omitting it must not perturb a report produced before the lede existed."""
+        self.assertEqual(
+            render_markdown(self.cards, "Q", {}, "the body"),
+            render_markdown(self.cards, "Q", {}, "the body", None),
+        )
+
+    def test_html_renders_the_headline_in_its_own_element(self):
+        """It is styled, escaped, and inside the narration callout."""
+        doc = render_html(self.cards, "Q", {}, "the body", "the lede")
+        self.assertIn('<p class="lede">the lede</p>', doc)
+        self.assertIn(".narration .lede {", doc)
+        self.assertLess(doc.index('class="lede"'), doc.index('class="blurb"'))
+
+    def test_the_html_headline_is_escaped(self):
+        """Model text is untrusted input to the renderer like any other."""
+        doc = render_html(self.cards, "Q", {}, "the body", "<script>alert(1)</script>")
+        self.assertNotIn("<script>alert", doc)
+
+    def test_html_without_a_headline_is_the_previous_output(self):
+        """Same additive guarantee as the markdown renderer."""
+        self.assertEqual(
+            render_html(self.cards, "Q", {}, "the body"),
+            render_html(self.cards, "Q", {}, "the body", None),
+        )
+
+    def test_the_transcript_records_the_whole_reply_so_a_replay_resplits(self):
+        """Storing the raw labelled text is what makes a replay reproduce both parts."""
+        outcome = synthesize(self._generator(self.labelled), "Q", self.cards)
+        entry = transcript_entry(outcome, "Q", len(self.cards))
+        self.assertIn("HEADLINE:", entry["response"])
+        self.assertEqual(split_narration(entry["response"])[0], outcome.headline)
+
+
+class TestToleranceFloor(unittest.TestCase):
+    """A verbatim quote of an observed value must survive re-computation.
+
+    Regression for a real suppression: a summary quoted r = 0.6369388762466359 from a
+    card computed with scipy.stats, and re-checking it against the same correlation
+    computed in numpy gave 0.6369388762466373. Both correct, 2e-15 apart, and the
+    displayed-precision tolerance of 5e-17 called it invented.
+    """
+
+    def setUp(self) -> None:
+        """A card whose observed r is the numpy value."""
+        self.cards = [make_card(observed={"r": 0.6369388762466373, "n_used": 8873.0})]
+
+    def test_a_last_ulp_difference_is_tolerated(self):
+        """The exact case that suppressed a real run."""
+        blurb = "Mechanical input tracked EndMT (r = 0.6369388762466359 across 8873 points)."
+        self.assertEqual(check_numeric_containment(blurb, self.cards), [])
+
+    def test_a_rounded_quote_still_passes(self):
+        """The original behaviour is unchanged: rounding is allowed."""
+        self.assertEqual(check_numeric_containment("r was about 0.637.", self.cards), [])
+
+    def test_an_invented_number_is_still_caught(self):
+        """The floor must not turn the check off."""
+        self.assertEqual(
+            check_numeric_containment("Significant at p=0.003.", self.cards), ["0.003"]
+        )
+
+    def test_a_number_outside_the_floor_is_still_caught(self):
+        """Nine significant figures of agreement is required, not four."""
+        self.assertEqual(
+            check_numeric_containment("r was 0.63693880 exactly.", self.cards),
+            ["0.63693880"],
+        )
+
+    def test_the_floor_scales_with_magnitude(self):
+        """A large value gets a proportionally larger absolute tolerance."""
+        cards = [make_card(observed={"peak": 858.9761234567890})]
+        self.assertEqual(
+            check_numeric_containment("Peak stress reached 858.9761234567123 Pa.", cards), []
+        )
+        self.assertEqual(
+            check_numeric_containment("Peak stress reached 858.9761000000000 Pa.", cards),
+            ["858.9761000000000"],
+        )
+

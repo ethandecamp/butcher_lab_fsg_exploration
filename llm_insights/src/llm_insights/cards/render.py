@@ -260,6 +260,7 @@ def render_markdown(
     question: str,
     meta: Mapping[str, Any],
     synthesis: str | None = None,
+    synthesis_headline: str | None = None,
 ) -> str:
     """Render the report as Markdown.
 
@@ -313,14 +314,10 @@ def render_markdown(
     # Putting it first invited the summary to be read as the finding and the cards as
     # supporting detail, which is exactly backwards.
     if synthesis:
-        lines += [
-            f"## {NARRATIVE_HEADING}",
-            "",
-            f"_{NARRATIVE_SUBLINE}_",
-            "",
-            f"> {synthesis.strip()}",
-            "",
-        ]
+        lines += [f"## {NARRATIVE_HEADING}", ""]
+        if synthesis_headline:
+            lines += [f"**{synthesis_headline.strip()}**", ""]
+        lines += [f"_{NARRATIVE_SUBLINE}_", "", f"> {synthesis.strip()}", ""]
     return "\n".join(lines)
 
 
@@ -867,6 +864,13 @@ _NARRATION_CSS: Final[str] = """
   padding: .1rem .45rem;
   margin-bottom: .55rem;
 }
+.narration .lede {
+  margin: 0 0 .6rem;
+  font-size: 1.18rem;
+  line-height: 1.35;
+  font-weight: 700;
+  letter-spacing: -.005em;
+}
 .narration .blurb { margin: 0 0 .55rem; font-size: 1.02rem; line-height: 1.5; }
 .narration .sub { margin: 0; font-size: .82rem; color: var(--ink-2); }
 
@@ -885,6 +889,7 @@ def render_html(
     question: str,
     meta: Mapping[str, Any],
     synthesis: str | None = None,
+    synthesis_headline: str | None = None,
 ) -> str:
     """Render the report as one self-contained HTML document.
 
@@ -937,7 +942,7 @@ def render_html(
 
     parts += [
         "</main>",
-        _html_narration(synthesis),
+        _html_narration(synthesis, synthesis_headline),
         _html_footer(tally),
         "</div>",
         "</body>",
@@ -947,7 +952,7 @@ def render_html(
     return "\n".join(parts)
 
 
-def _html_narration(synthesis: str | None) -> str:
+def _html_narration(synthesis: str | None, headline: str | None = None) -> str:
     """Render the model-written summary as an unmistakably unverified callout.
 
     Args:
@@ -958,9 +963,11 @@ def _html_narration(synthesis: str | None) -> str:
     """
     if not synthesis:
         return ""
+    lede = f'<p class="lede">{_esc(headline.strip())}</p>' if headline else ""
     return (
         '<section class="narration" aria-label="Model-generated narrative summary">'
         '<span class="tag">Model-generated narration · not a verdict</span>'
+        f"{lede}"
         f'<p class="blurb">{_esc(synthesis.strip())}</p>'
         f'<p class="sub">{_esc(NARRATIVE_SUBLINE)}</p>'
         "</section>"
@@ -1165,6 +1172,7 @@ def write_report(
     meta: Mapping[str, Any],
     out_dir: str | Path,
     synthesis: str | None = None,
+    synthesis_headline: str | None = None,
 ) -> tuple[Path, Path]:
     """Write ``report.md`` and ``report.html`` into ``out_dir``.
 
@@ -1183,7 +1191,11 @@ def write_report(
     target.mkdir(parents=True, exist_ok=True)
     md_path = target / "report.md"
     html_path = target / "report.html"
-    md_path.write_text(render_markdown(cards, question, meta, synthesis), encoding="utf-8")
-    html_path.write_text(render_html(cards, question, meta, synthesis), encoding="utf-8")
+    md_path.write_text(
+        render_markdown(cards, question, meta, synthesis, synthesis_headline), encoding="utf-8"
+    )
+    html_path.write_text(
+        render_html(cards, question, meta, synthesis, synthesis_headline), encoding="utf-8"
+    )
     LOG.info("wrote report for %d cards to %s and %s", len(cards), md_path, html_path)
     return md_path, html_path

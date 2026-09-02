@@ -865,6 +865,99 @@ Environment check:
 - ruff not run; the pinned 0.16.5 is only in Ethan's venv.
 - Not committed by Cowork's own hand beyond the plumbing recipe; not pushed.
 
+## TASK-010 — A headline above the narrative summary, and a floor on the match tolerance
+
+**Status:** IN REVIEW
+**Owner:** Cowork, 2026-09-02
+**Size:** ~1 hour
+
+### Context
+Ethan asked for a one-to-two sentence version of the narrative summary sitting directly above
+the long one, so a reader who stops after a line still has the run's finding. Building it
+surfaced an unrelated defect in the containment check, described below, which had already
+suppressed a real summary.
+
+### What was built
+
+**The headline.** One call, not two: `SYNTHESIS_SYSTEM_PROMPT` now asks for two labelled parts,
+`HEADLINE:` and `SUMMARY:`, and `split_narration` splits the reply. Parsing on labels rather
+than on paragraph breaks keeps a model that writes one long paragraph from silently losing its
+headline into the body. A reply carrying no labels is treated as a summary with no headline
+rather than as an error — losing the long summary over a missing label would be the wrong
+trade, and it keeps every transcript recorded before this change replayable.
+
+The prompt asks specifically for the *finding*, not a description of the report: "Higher flow
+suppressed growth across the whole cushion" is a headline, "Five claims were tested and four
+survived" is not.
+
+Containment runs over the whole reply and both parts are suppressed together. A headline
+surviving a rejected summary would mean showing the unchecked half of a reply whose other half
+was rejected.
+
+**The tolerance floor — a real defect, found while testing the above.** `_tolerance` derived a
+match tolerance from a numeral's displayed precision alone. A model that copies an observed
+value verbatim quotes all seventeen significant figures, which asks for agreement to about
+5e-17 — tighter than floating point is reproducible. Tolerance is now floored at `1e-9` of the
+value's magnitude.
+
+### Log
+
+**2026-09-02 — implementation and verification (Cowork).**
+
+Files modified: `agent/synthesis.py`, `agent/run.py`, `cards/render.py`, `tests/test_synthesis.py`,
+`INSTRUCTIONS.md`.
+
+The tolerance defect was not hypothetical. Replaying Ethan's live transcript suppressed a
+summary that had rendered when it was produced:
+
+```
+- **Narrative summary:** suppressed after one retry: unsupported numerals (0.6369388762466359)
+```
+
+The blurb quoted `r = 0.6369388762466359` from its own card. That card's `r` had been computed
+by `scipy.stats` in Ethan's venv; re-checking it against the same correlation computed in numpy
+after TASK-009 gives:
+
+```
+numpy (mine) : 0.6369388762466373
+scipy (quoted): 0.6369388762466359
+abs diff      : 1.3322676295501878e-15
+rel diff      : 2.091672653741905e-15
+tolerance for "0.6369388762466359": 5e-17
+```
+
+Both values are correct and 2e-15 apart; the check called the summary's own number invented.
+This would have fired for anyone re-checking a summary on a different machine, and it is only
+visible because TASK-009 changed which implementation computes `r`. With the floor in place the
+same replay reports `Narrative summary: rendered`.
+
+The floor loses nothing the check was catching — verified against the shipped cards:
+
+```
+invented  -> ['0.003', '12']
+near-miss -> []
+genuine   -> clean
+```
+
+`p=0.003` and `12 replicates` are still caught. A quote agreeing to fewer than nine significant
+figures is still caught (`0.63693880` against an observed `0.6369388762466373` is a violation).
+
+Two existing tests broke and both were fixtures keyed on prompt wording: a stub matched the
+literal string `"sentence summary"`, which the reworded prompt no longer contains. Changed to
+match `"RESULTS ("`, the data block header, which is structural rather than cosmetic.
+
+Suite: 327 -> 348 tests, 0 failures, 5 skips (the scipy oracle layer, which cannot run on the
+Cowork VM). Default behaviour unchanged: replaying the shipped demo transcript with no flags
+reproduces `data/report.md` exactly apart from the volatile provenance lines, and
+`render_markdown`/`render_html` with no headline argument return exactly what they returned
+before this task.
+
+**Not done:**
+- **No live run has produced a headline.** Every transcript on disk predates the labels, so a
+  replay exercises only the no-headline fallback path. Ethan needs one fresh
+  `--synthesize` run against the real CLI to see the feature work end to end.
+- ruff not run; the pinned 0.16.5 is only in Ethan's venv.
+
 ## Open questions
 
 Questions for Ethan or Dan that are not scoped to a single task. Add, don't delete.

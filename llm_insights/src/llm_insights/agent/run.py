@@ -429,17 +429,21 @@ def main(argv: list[str] | None = None) -> int:
     # Synthesis runs here, after every verdict is fixed and the cards are frozen, and
     # it can only add a paragraph to the report. Nothing below re-reads a verdict.
     narration = None
+    narration_headline = None
     synthesis_record = None
     if args.synthesize:
         outcome = synthesize(generator, result.question, cards)
         result.meta.update(outcome.provenance())
         narration = outcome.blurb
+        narration_headline = outcome.headline
         synthesis_record = transcript_entry(outcome, result.question, len(cards))
 
     out_dir = Path(args.out)
     cards_path = out_dir / "cards.json"
     cards_to_json(cards, cards_path)
-    md_path, html_path = write_report(cards, result.question, result.meta, out_dir, narration)
+    md_path, html_path = write_report(
+        cards, result.question, result.meta, out_dir, narration, narration_headline
+    )
     transcript_path = write_transcript(result, out_dir / "transcript.json", synthesis_record)
 
     print(
