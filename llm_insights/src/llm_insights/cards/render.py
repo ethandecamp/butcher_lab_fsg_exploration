@@ -44,8 +44,8 @@ VERIFICATION_LINE: Final[str] = (
 NARRATIVE_HEADING: Final[str] = "Narrative summary"
 NARRATIVE_SUBLINE: Final[str] = (
     "Model-generated narration, not a verified result. Every number in it was checked "
-    "mechanically against the verified values below, but the wording is the model's. "
-    "The verdict table and the cards below are authoritative."
+    "mechanically against the verified values above, but the wording is the model's. "
+    "The verdict table and the cards above are authoritative."
 )
 
 #: Human labels for the provenance keys ``meta`` is expected to carry. Any other key
@@ -241,15 +241,6 @@ def render_markdown(
         VERIFICATION_LINE,
         "",
     ]
-    if synthesis:
-        lines += [
-            f"## {NARRATIVE_HEADING}",
-            "",
-            f"_{NARRATIVE_SUBLINE}_",
-            "",
-            f"> {synthesis.strip()}",
-            "",
-        ]
     lines += [
         "| Verdict | Count |",
         "| --- | ---: |",
@@ -266,11 +257,23 @@ def render_markdown(
 
     if not cards:
         lines += ["## Claims", "", "_No hypotheses were produced for this run._", ""]
-        return "\n".join(lines)
+    else:
+        lines += ["## Claims", ""]
+        for block in group_into_blocks(cards):
+            lines += _markdown_block(block)
 
-    lines += ["## Claims", ""]
-    for block in group_into_blocks(cards):
-        lines += _markdown_block(block)
+    # The narration goes last, after every verdict a reader could check it against.
+    # Putting it first invited the summary to be read as the finding and the cards as
+    # supporting detail, which is exactly backwards.
+    if synthesis:
+        lines += [
+            f"## {NARRATIVE_HEADING}",
+            "",
+            f"_{NARRATIVE_SUBLINE}_",
+            "",
+            f"> {synthesis.strip()}",
+            "",
+        ]
     return "\n".join(lines)
 
 
@@ -861,6 +864,7 @@ def render_html(
 
     parts += [
         "</main>",
+        _html_narration(synthesis),
         _html_footer(tally),
         "</div>",
         "</body>",
@@ -921,7 +925,6 @@ def _html_masthead(
         '<p class="eyebrow">Hypothesis cards · verified against the simulation</p>'
         f'<h1 class="question">{heading}</h1>'
         f'<p class="verification">{_esc(VERIFICATION_LINE)}</p>'
-        f"{_html_narration(synthesis)}"
         f'<ul class="tally">{tiles}</ul>'
         f'<ul class="legend">{legend}</ul>'
         f"{provenance}"

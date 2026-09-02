@@ -587,13 +587,20 @@ class TestRendering(unittest.TestCase):
         self.blurb = "The single claim survived, with a ratio of 1.4967."
 
     def test_markdown_fences_the_blurb(self):
-        """Heading, subline and the text itself, above the tally."""
+        """Heading, subline and the text itself, below the claims it narrates."""
         text = render_markdown(self.cards, "Q", {}, self.blurb)
         self.assertIn(f"## {NARRATIVE_HEADING}", text)
         self.assertIn(NARRATIVE_SUBLINE, text)
         self.assertIn(f"> {self.blurb}", text)
         self.assertLess(
-            text.index(NARRATIVE_HEADING), text.index("| Verdict | Count |"), "blurb sits on top"
+            text.index("| Verdict | Count |"),
+            text.index(NARRATIVE_HEADING),
+            "the tally is above the narration",
+        )
+        self.assertLess(
+            text.index("## Claims"),
+            text.index(NARRATIVE_HEADING),
+            "the narration sits below the claims it describes",
         )
 
     def test_markdown_without_a_blurb_is_unchanged(self):
@@ -610,7 +617,12 @@ class TestRendering(unittest.TestCase):
         self.assertIn("Model-generated narration", doc)
         self.assertIn(self.blurb, doc)
         self.assertIn(".narration {", doc, "its styles ship with it")
-        self.assertLess(doc.index('class="narration"'), doc.index('class="tally"'))
+        self.assertLess(doc.index('class="tally"'), doc.index('class="narration"'))
+        self.assertLess(
+            doc.index("</main>"),
+            doc.index('class="narration"'),
+            "the narration follows the cards, it does not head the report",
+        )
 
     def test_html_without_a_blurb_carries_neither_block_nor_styles(self):
         """With no summary the document is byte-for-byte the one it was before."""
