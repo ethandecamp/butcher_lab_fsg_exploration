@@ -4,8 +4,13 @@ Usage::
 
     python -m llm_insights.agent.run --generator transcript --transcript data/run.json
 
-The default backend is ``transcript``, deliberately: the demo replays a recorded run,
-and a replay must be the thing that happens when nobody asked for a live model call.
+The default backend is ``claude-cli``, which reaches the model through the Claude Code
+CLI and therefore needs no API key. It is the default rather than ``transcript``
+because a replay ignores the question it is given: defaulting to a replay would answer
+a new question with old cards and say nothing about it, which is a worse failure in
+front of an audience than a backend that refuses to start. A transcript replay is one
+flag away, and the CLI backend refuses to run at all if the binary is missing.
+
 Whichever backend runs, its identity is written into the report's provenance block.
 """
 
@@ -17,13 +22,19 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from llm_insights.agent.generator import make_generator
+from llm_insights.agent.generator import (
+    GENERATOR_KINDS,
+    build_system_prompt,
+    build_user_prompt,
+    make_generator,
+)
 from llm_insights.agent.loop import investigate, write_transcript
 from llm_insights.cards.card import cards_from_run, cards_to_json
 from llm_insights.cards.render import write_report
 from llm_insights.io.dataset import Dataset
 
 LOG = logging.getLogger(__name__)
+
 
 def _default_root() -> Path:
     """Locate the FSG results tree, preferring the checkout this package lives in.
@@ -65,9 +76,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--generator",
-        choices=("anthropic", "transcript", "echo"),
-        default="transcript",
-        help="which backend writes the hypotheses (default: transcript)",
+        choices=GENERATOR_KINDS,
+        default="claude-cli",
+        help=(
+            "which backend writes the hypotheses (default: claude-cli, which needs no "
+            "API key); paste is a manual fallback and is never chosen automatically"
+        ),
     )
     parser.add_argument(
         "--transcript",
@@ -78,7 +92,43 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--question", default=DEFAULT_QUESTION, help="the question to investigate")
     parser.add_argument("--n", type=int, default=5, help="how many hypotheses to ask for")
     parser.add_argument(
-        "--model", default=None, help="model id, used only by --generator anthropic"
+        "--model",
+        default=None,
+        help="model id, used by --generator anthropic and --generator claude-cli",
+    )
+    parser.add_argument(
+        "--max-calls",
+        type=int,
+        default=None,
+        help=(
+            "ceiling on model calls for --generator claude-cli; a full run makes six "
+            "to ten, so the default of 12 catches a runaway without firing in normal use"
+        ),
+    )
+    parser.add_argument(
+        "--max-budget-usd",
+        type=float,
+        default=None,
+        help="cumulative cost ceiling for --generator claude-cli (default: 0.50)",
+    )
+    parser.add_argument(
+        "--claude-binary",
+        default=None,
+        help="path to the claude executable, if it is not on PATH",
+    )
+    parser.add_argument(
+        "--paste-dir",
+        type=Path,
+        default=None,
+        help="where --generator paste writes its prompt and reply files",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "print the exact prompt the generator would send and exit without calling "
+            "a model; use it to inspect cost before spending any allowance"
+        ),
     )
     parser.add_argument(
         "--out", type=Path, default=Path("data"), help="directory for the cards and report"
@@ -175,6 +225,95 @@ def _summarise(meta: dict[str, Any], paths: dict[str, Path]) -> str:
     return "\n".join(lines)
 
 
+def _open_dataset(root: Path) -> Dataset:
+    """Open the dataset, exiting with a usable message if it cannot be read.
+
+    Args:
+        root: The dataset root.
+
+    Returns:
+        The opened dataset.
+
+    Raises:
+        SystemExit: With status 2 if the root cannot be opened.
+    """
+    try:
+        return Dataset(root)
+    except (FileNotFoundError, OSError) as exc:
+        print(f"error: could not open the dataset at {root}: {exc}", file=sys.stderr)
+        raise SystemExit(2) from None
+
+
+def _warn_on_stale_replay(generator: Any, question: str) -> None:
+    """Warn when a replay is being asked a question it did not answer.
+
+    A :class:`~llm_insights.agent.generator.TranscriptGenerator` ignores the question
+    it is given and returns recorded claims. That is correct behaviour for a replay,
+    and dangerous in a live demo: without this warning the report would carry the new
+    question in its header and the old run's answers underneath it.
+
+    Args:
+        generator: The generator about to run.
+        question: The question this run was given.
+    """
+    recorded = getattr(generator, "recorded_question", None)
+    if recorded and str(recorded).strip() != question.strip():
+        print(
+            "warning: this transcript recorded the question\n"
+            f"           {recorded!r}\n"
+            f"         but this run was given\n"
+            f"           {question!r}\n"
+            "         A replay returns its recorded claims regardless of the question, "
+            "so the report\n         will pair your question with the old run's answers. "
+            "Use --generator claude-cli\n         to actually answer this question.",
+            file=sys.stderr,
+        )
+
+
+def _close(generator: Any) -> None:
+    """Release a backend's resources if it holds any.
+
+    Args:
+        generator: The generator that has finished, whatever its backend.
+    """
+    close = getattr(generator, "close", None)
+    if callable(close):
+        close()
+
+
+def _dry_run(ds: Dataset, args: argparse.Namespace) -> int:
+    """Print the prompts a live run would send, and make no model call.
+
+    Args:
+        ds: The dataset to summarise.
+        args: Parsed arguments.
+
+    Returns:
+        Process exit status 0.
+    """
+    briefing = _load_briefing(ds, args.briefing_file)
+    system = build_system_prompt()
+    user = build_user_prompt(briefing, args.question, args.n)
+    print("=" * 78)
+    print("SYSTEM PROMPT")
+    print("=" * 78)
+    print(system)
+    print()
+    print("=" * 78)
+    print("USER PROMPT (proposal round)")
+    print("=" * 78)
+    print(user)
+    print()
+    sys.stdout.flush()
+    total = len(system) + len(user)
+    print(
+        f"dry run: {len(system)} + {len(user)} = {total} characters, roughly "
+        f"{total // 4} tokens for the first call. No model was called.",
+        file=sys.stderr,
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run one investigation from the command line.
 
@@ -190,27 +329,51 @@ def main(argv: list[str] | None = None) -> int:
         format="%(levelname)s %(name)s: %(message)s",
     )
 
+    ds = _open_dataset(args.root)
+    if args.dry_run:
+        return _dry_run(ds, args)
+
     try:
-        generator = make_generator(args.generator, transcript=args.transcript, model=args.model)
+        generator = make_generator(
+            args.generator,
+            transcript=args.transcript,
+            model=args.model,
+            max_calls=args.max_calls,
+            max_budget_usd=args.max_budget_usd,
+            binary=args.claude_binary,
+            paste_dir=args.paste_dir,
+        )
     except (ValueError, RuntimeError, OSError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
-    try:
-        ds = Dataset(args.root)
-    except (FileNotFoundError, OSError) as exc:
-        print(f"error: could not open the dataset at {args.root}: {exc}", file=sys.stderr)
-        return 2
+    _warn_on_stale_replay(generator, args.question)
 
     briefing = _load_briefing(ds, args.briefing_file)
-    result = investigate(
-        ds,
-        generator,
-        briefing,
-        args.question,
-        n=args.n,
-        narrow_failures=not args.no_narrow,
-    )
+    try:
+        result = investigate(
+            ds,
+            generator,
+            briefing,
+            args.question,
+            n=args.n,
+            narrow_failures=not args.no_narrow,
+        )
+    except (RuntimeError, ValueError, OSError) as exc:
+        _close(generator)
+        # The proposal round is the one generator call the loop does not guard, because
+        # a run with no claims has nothing to report. Fail with the backend's own
+        # message rather than a traceback, and say what to try instead.
+        print(f"error: the {args.generator} backend failed: {exc}", file=sys.stderr)
+        if args.generator == "claude-cli":
+            print(
+                "hint: check `claude -p hello` works in this terminal. If the model "
+                "was refused, try --model sonnet. If your allowance is exhausted, run "
+                "--generator transcript --transcript data/demo_transcript.json to "
+                "replay the recorded demo.",
+                file=sys.stderr,
+            )
+        return 2
 
     cards = cards_from_run(result.hypotheses, result.outcomes)
     out_dir = Path(args.out)
@@ -230,6 +393,10 @@ def main(argv: list[str] | None = None) -> int:
             },
         )
     )
+    usage = getattr(generator, "usage_summary", None)
+    if callable(usage):
+        print(f"Usage:       {usage()}\n")
+    _close(generator)
     return 0
 
 

@@ -423,9 +423,203 @@ package installs available. Ethan's venv now has both packages, so these can be 
 
 ---
 
+---
+
+## TASK-007 — Keyless live backend (Claude Code CLI) + paste fallback
+
+**Status:** IN REVIEW
+**Owner:** Cowork, 2026-09-02
+**Size:** ~3 hours
+
+### Context
+The demo was written assuming an Anthropic API key. Ethan has a Claude Pro subscription, not a
+developer account, so `--generator anthropic` could never run. The requirement was a working
+demo in which *any* question can be asked, with no API key, and with guardrails so a run cannot
+quietly eat the subscription allowance before a presentation.
+
+The `Generator` protocol (`propose` / `narrow`) is the only place the API is reached, so this is
+a new backend, not a redesign. No verification code changed.
+
+### What was built
+`src/llm_insights/agent/subscription.py` (new, ~800 lines) with two backends:
+
+- **`ClaudeCLIGenerator`** — shells out to `claude -p ... --output-format json`, which
+  authenticates against the subscription. Now the CLI default (`--generator claude-cli`).
+- **`PasteGenerator`** — clipboard/file bridge through a human and a Claude chat window. Never
+  selected automatically; `--generator paste` only.
+
+Both reuse `generator.py`'s prompt construction and response parsing verbatim.
+
+New flags on `agent/run.py`: `--max-calls`, `--max-budget-usd`, `--claude-binary`, `--paste-dir`,
+`--dry-run`.
+
+**The default backend changed from `transcript` to `claude-cli`,** deliberately reversing the
+earlier choice. A replay ignores the question it is given, so defaulting to a replay meant a
+mistyped command would answer a *new* question with the *old* run's cards and say nothing about
+it — the one failure mode that actively misleads an audience. A backend that refuses to start is
+strictly safer. `TranscriptGenerator.recorded_question` plus `run._warn_on_stale_replay` now make
+that mismatch loud whenever a replay is asked an unrecorded question.
+
+### Cost guardrails
+| Guardrail | Default |
+|---|---|
+| model | `haiku` (cheapest tier; auto-retries once on `sonnet` if the account cannot use it) |
+| call ceiling | 12 (`--max-calls`), enforced in-process before each subprocess |
+| cost ceiling | $0.50 (`--max-budget-usd`), cumulative, and passed to the CLI per call |
+| tools | denied by name; `--max-turns 1`, so a call is one round trip |
+| cwd | a per-instance empty temp dir, so `CLAUDE.md` auto-discovery finds nothing |
+| env | `ANTHROPIC_API_KEY` stripped from the child, so a keyless run stays keyless |
+
+### Evidence
+
+**1. Real CLI envelope, captured by Ethan 2026-09-02** (the fixture every test mirrors):
+
+```
+$ claude -p 'Return only this JSON, nothing else: [{"id":"H1"}]' --output-format json --model haiku
+{"total_cost_usd":0.0160698,
+ "usage":{"input_tokens":10,"cache_creation_input_tokens":7435,
+          "cache_read_input_tokens":7548,"output_tokens":87},
+ "modelUsage":{"claude-haiku-4-5-20251001":{...,"costUSD":0.0160698,"costBasis":"list"}},
+ "is_error":false,"num_turns":1,"subtype":"success",
+ "result":"```json\n[{\"id\": \"H1\"}]\n```"}
+```
+
+So: Haiku is available on this account; `result` arrives markdown-fenced (the existing parser
+already strips fences); one call costs ~$0.016, dominated by the CLI's own ~7.5k-token system
+prompt. A full 8-call run is therefore ~$0.15-0.25 equivalent, well inside the $0.50 ceiling,
+and `--max-calls 12` binds first.
+
+**2. End-to-end run** against the real dataset, with a stub `claude` replaying
+`data/demo_transcript.json` through the real subprocess path — reproduces the demo exactly:
+
+```
+Generator:   claude-cli:haiku
+  proposed        7      survived        5
+  admissible      7      falsified       0
+  rejected        0      narrowed        1
+                         could not run   1
+Usage:       2 call(s), $0.0321, 20 in / 174 out tokens
+```
+
+The argv the generator actually built, and the environment the child actually saw:
+
+```
+['-p','<12923 chars>','--output-format','json','--model','haiku',
+ '--system-prompt','<6057 chars>','--max-turns','1',
+ '--disallowedTools','<117 chars>','--strict-mcp-config','--max-budget-usd','0.50']
+cwd: /tmp/llm-insights-cli-lvurfyi_   ANTHROPIC_API_KEY present: False
+```
+
+**3. Fault injection.** Four end-to-end runs through the real `subprocess` path against stub
+executables that misbehave on purpose, because the failure paths are the ones a demo actually
+hits and none of them can be rehearsed against the real CLI from here:
+
+| Stub behaviour | Result |
+|---|---|
+| happy path (replays `demo_transcript.json`) | 7 cards, identical to the recorded demo |
+| `unknown model 'haiku'` | one warning, switches to sonnet, completes, 2 calls, provenance reads `claude-cli:sonnet` |
+| `unknown option '--strict-mcp-config'` | one warning, retries with a minimal command line, completes, 2 calls |
+| `Invalid API key - please run /login` | exits 2 with the CLI's own message plus an actionable hint; no traceback |
+
+**4. Tests.** 228 total (50 new in `tests/test_subscription.py`), all green, with `scipy`
+installed:
+
+```
+$ python3 -m unittest discover -s ../tests -t ..
+Ran 228 tests in 1.360s
+OK
+```
+
+In the Cowork VM, which has no `scipy` and no package network, the same command gives
+`Ran 228 tests ... FAILED (errors=5)` — all five are `ModuleNotFoundError: scipy` inside
+`primitives.correlation`, pre-existing and unrelated to this task.
+
+**5. Lint.**
+
+```
+$ ruff check src/llm_insights/agent/{subscription,generator,run}.py tests/test_subscription.py
+All checks passed!
+$ ruff format --check <same files>
+4 files already formatted
+```
+
+Ruff 0.15.11 was the newest version installable in the sandbox, not the pinned 0.16.5. Only the
+four files this task touched were linted and formatted, so no unrelated file was reformatted
+under the wrong version. **Re-run `ruff check` and `ruff format --check` under the pinned 0.16.5
+in Ethan's venv before merging.**
+
+### Defects found and fixed during review
+1. **`--bare` would have broken authentication.** It was in as the anti-`CLAUDE.md` guardrail.
+   Its own help says auth is then "strictly `ANTHROPIC_API_KEY` or apiKeyHelper... OAuth and
+   keychain are never read" — and this backend deliberately runs without a key, so every call
+   would have failed to authenticate. Removed; an empty scratch cwd does the job. Pinned by
+   `test_bare_is_never_passed`.
+2. **The flag probe matched flags named in *other* flags' prose.** `--help` describes `--bare`
+   with text naming `--system-prompt[-file]`, `--add-dir`, `--mcp-config` and others. A
+   substring search reported those as supported, which would have put an unknown option on the
+   command line and lost the run. Replaced with a structural parse (`_declared_flags`): option
+   lines sit at one indent, wrapped descriptions at a deeper one. Verified against Ethan's real
+   help output — `--system-prompt` correctly does *not* leak out of `--bare`'s prose.
+3. **The stale-replay warning never fired for the shipped transcript.** It read the question
+   from each proposal's `request` block; `data/demo_transcript.json` is hand-authored and
+   records it only in file-level `recorded_from`. A warning that fires for some transcripts and
+   not the one actually shipped is worse than none. Both are checked now.
+4. **`--max-budget-usd` was passed as the *remaining* budget**, which handed the last permitted
+   call a cap smaller than one call costs — turning a clean stop into a confusing mid-call
+   abort. Now passes the full ceiling as a per-call backstop; the cumulative total is
+   `check_budget`'s job.
+5. **The generator leaked its temp dir on the error path.** `run.main` now closes it in all
+   paths.
+6. `is_error` envelopes discarded the CLI's own message; it is now included in the exception.
+7. **Two retry paths fired for one failure, and the wrong one won.** `UNKNOWN_OPTION_MARKERS`
+   included the substring `"error: unknown"`, which also matches
+   `"API Error: unknown model 'haiku'"`. So a model-availability failure spent a call on a
+   pointless flag retry, **permanently cleared every guardrail flag** — `--max-turns`, the tool
+   ban, the budget cap — and only then switched model. Markers narrowed to ones that name an
+   option, and `can_fall_back` now takes precedence in `call_once`. Found by the fault-injection
+   run above, not by any unit test; a regression test now pins both the call count and that the
+   flags survive a model switch.
+
+### Acceptance criteria
+1. ~~A live run with no `ANTHROPIC_API_KEY` set answers an arbitrary question end to end.~~
+   **Not yet verified against the real CLI** — see the log and the Open question below.
+2. Ceilings stop a run rather than being advisory. **Done**, `TestBudget`.
+3. No credential is read, stored, logged or written into a report. **Done** — nothing in this
+   module touches credentials at all; the CLI owns them.
+4. Every verification path is unchanged. **Done** — no file under `harness/` or `summary/` was
+   touched.
+
+### Log
+- 2026-09-02 (Cowork) — Built, reviewed, tested, documented. Ready for review.
+  `INSTRUCTIONS.md` rewritten around the keyless path; `README.md` updated (177 -> 228 tests).
+
+  **The one thing not done: this was never run against the real `claude` binary.** Cowork's VM
+  ships a disabled `claude` stub, and `device_bash` reaches a Linux VM rather than macOS, so
+  every subprocess test ran against a faithful stub built from the real envelope Ethan captured.
+  The stub exercises the real `subprocess.run` path, the real argv, the real environment
+  scrubbing and the real parser — but it cannot prove the installed CLI accepts this exact flag
+  set. Ethan runs the 30-second smoke test in §2 of `INSTRUCTIONS.md` before showing anyone.
+
+
 ## Open questions
 
 Questions for Ethan or Dan that are not scoped to a single task. Add, don't delete.
+
+- **Does the installed Claude Code CLI accept the flag set TASK-007 builds?** The generator
+  probes `claude --help` and uses only what is declared, and it retries once with a minimal
+  command line if the CLI rejects an option — but that path has never run against the real
+  binary. `--strict-mcp-config` is the one with no fallback if it turns out to require an
+  accompanying `--mcp-config`; the retry would catch it only if the CLI phrases the complaint
+  as an unknown/invalid option. First live run answers this. If it misbehaves, drop
+  `"--strict-mcp-config"` from `OPTIONAL_FLAGS` in `agent/subscription.py` — one line, no other
+  effect.
+- **Does `--generator claude-cli` change what the demo is allowed to claim?** Claude Code wraps
+  the prompt in its own agent instructions, which is an uncontrolled variable the API backend
+  did not have. It does not weaken the falsification argument — the harness still executes every
+  test in code, and pre-registration is unaffected — but it does mean a survival *rate* measured
+  this way is not a clean number. The roadmap's "run N questions, report the survival rate" item
+  should use `--generator paste` or an API key. Worth saying out loud to Dan rather than letting
+  him find it.
 
 - **Is `MECH_MAX = 100.0` Pa deliberate?** Peak von Mises is 597 Pa (healthy) and 859 Pa
   (overflow), so 29.7% / 44.1% of nodes clip to `mech_norm = 1.0` in those two cases,

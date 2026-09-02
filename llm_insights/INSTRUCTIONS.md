@@ -1,6 +1,11 @@
 # INSTRUCTIONS.md — how to run the hypothesis tester
 
-Everything you need to run the demo, run the tests, and run it live against the API.
+Everything you need to run the demo live, replay it, run the tests, and understand what each
+backend costs.
+
+**No Anthropic API key is required.** The live backend goes through the Claude Code CLI, which
+authenticates with your Claude subscription. If you do have an API key, `--generator anthropic`
+still works exactly as before.
 
 ---
 
@@ -16,20 +21,85 @@ Check it worked:
 
 ```bash
 python3 -c "import numpy, scipy, pandas; print('ok')"
+claude --version          # the live backend needs this on PATH
 ```
 
-`h5py` is in the dependency list but **nothing in this package needs it yet** — every field
-is read from the `.npz`, `.npy`, and `.csv` artifacts. See §7.
+If `claude` is missing: `npm install -g @anthropic-ai/claude-code`, then run `claude` once and
+log in. Nothing in this package ever reads or stores your credentials.
 
 ---
 
-## 2. Run the demo (no API key needed)
+## 2. Run it live — the demo (no API key)
 
-This is what to show Dan. It replays the recorded generations and re-runs every verification
-in code, so the numbers on the cards are computed live even though the claims are replayed.
+This is what to show Dan. **Any question can be asked.** The model writes the hypotheses; the
+verdicts are computed in code.
 
 ```bash
 cd llm_insights
+python3 -m llm_insights.agent.run \
+  --question "What differs between the healthy and overflow cases, and why?" \
+  --out data/live
+open data/live/report.html
+```
+
+`--generator claude-cli` is the default, so it does not need to be typed. Roughly 6–10 model
+calls, about 30–90 seconds.
+
+To use a different model:
+
+```bash
+python3 -m llm_insights.agent.run --model sonnet --question "..." --out data/live
+```
+
+### What it costs
+
+The default model is **Haiku**, the cheapest tier. On a subscription these calls draw down your
+rolling usage allowance rather than a bill; the CLI still reports a dollar-equivalent, and this
+tool prints the total when the run finishes:
+
+```
+Usage:       8 call(s), $0.1400, 41203 in / 15877 out tokens
+```
+
+A measured single call on Haiku cost **$0.0161**, most of it the CLI's own ~7.5k-token system
+prompt. A full run is therefore around **$0.15–0.25 equivalent** — a rounding error against a
+Pro allowance. You can run the demo repeatedly without noticing.
+
+To see the exact prompt and its size before spending anything:
+
+```bash
+python3 -m llm_insights.agent.run --dry-run --question "..."
+```
+
+### The guardrails, and why each one is there
+
+| Guardrail | Effect |
+|---|---|
+| `--model haiku` (default) | Cheapest tier. Opus costs several times more per turn than Sonnet, Sonnet more than Haiku. |
+| `--max-calls 12` (default) | Hard ceiling on model calls. A full run makes 6–10, so this catches a runaway without firing normally. |
+| `--max-budget-usd 0.50` (default) | Cumulative ceiling. The run stops rather than continuing past it, and the same value is passed to the CLI as a per-call cap. |
+| Tools disabled, `--max-turns 1` | Each call is one round trip, not an agent session. A tool call would cost a second full-context request. |
+| Empty scratch directory | The CLI runs in an empty temp dir, so `CLAUDE.md` auto-discovery finds nothing. This is a **correctness** property as much as a cost one: a claim must be written from the briefing alone. |
+| `ANTHROPIC_API_KEY` stripped from the child environment | If a key happened to be exported, the call would silently route through metered API billing. It is removed so a keyless run stays keyless. |
+
+Raise a ceiling only deliberately:
+
+```bash
+python3 -m llm_insights.agent.run --max-calls 20 --max-budget-usd 1.00 --question "..."
+```
+
+> **Do not add `--bare`.** It looks like the right way to suppress `CLAUDE.md` discovery, but it
+> also restricts authentication to `ANTHROPIC_API_KEY` — OAuth and keychain are never read — so
+> with no key every call would fail to authenticate. The empty scratch directory achieves the
+> same thing without touching auth. There is a test pinning this.
+
+---
+
+## 3. Replay the recorded demo
+
+Deterministic, free, and offline. Use it if the CLI is unavailable or your allowance is spent.
+
+```bash
 python3 -m llm_insights.agent.run \
   --generator transcript \
   --transcript data/demo_transcript.json \
@@ -49,52 +119,50 @@ Expected output:
   could not run   1
 ```
 
-Then open the report:
+A replay re-runs every verification in code, so the numbers on the cards are computed live even
+though the claims are replayed. The provenance block always says it was a replay; it cannot be
+passed off as a live call.
 
-```bash
-open data/report.html
-```
-
-`data/report.md` is the same content as markdown if you'd rather paste it into slides.
+**A replay ignores the question it is given.** If you ask a transcript a question it did not
+record, the tool prints a loud warning before it runs — because otherwise the report would carry
+your new question in the header and the old run's answers underneath it. That is the one failure
+mode that would actually mislead an audience, so it is impossible to hit silently.
 
 ---
 
-## 3. Run it live against the Anthropic API
+## 4. Manual fallback (`--generator paste`)
 
-Do this in the terminal you're presenting from, right before the demo. **Do not put the key in
-`.zshrc`, and do not commit it.**
+Last resort: no CLI, no key, but a browser. The tool copies each prompt to your clipboard, you
+paste it into a Claude chat, copy the reply, and press Enter. Two exchanges for a typical run.
+
+```bash
+python3 -m llm_insights.agent.run --generator paste --question "..." --out data/live
+```
+
+Prompts and replies are also written to `data/paste/` so nothing depends on the clipboard
+working. This backend is never selected automatically — you have to ask for it by name.
+
+It has one genuine advantage worth knowing: the prompt that goes in is *exactly* the one this
+package built, with no CLI agent-wrapper around it. If you ever want the run to be a clean
+instrument rather than a demo, this is the cleanest one available without an API key.
+
+---
+
+## 5. Run it live with an API key (unchanged)
 
 ```bash
 export ANTHROPIC_API_KEY="sk-ant-..."
-
-python3 -m llm_insights.agent.run \
-  --generator anthropic \
-  --model claude-sonnet-4-5 \
-  --question "What differs between the healthy and overflow cases, and why?" \
-  --n 5 \
-  --out data/live
-```
-
-Notes:
-
-- The key is read from the environment on every request and is **never stored on the object,
-  logged, or written into the report** — there are tests asserting all four.
-- Each run writes `data/live/transcript.json`. You can replay that exact run later with
-  `--generator transcript --transcript data/live/transcript.json`, which is how you turn a good
-  live run into a reproducible one.
-- A replay always reports itself as a replay in the provenance block. It cannot be passed off as
-  a live call.
-- Cost is small: the briefing is ~3,200 tokens and a run makes roughly 6-10 calls.
-
-Unset it when you're done:
-
-```bash
+python3 -m llm_insights.agent.run --generator anthropic --model claude-sonnet-4-5 \
+  --question "..." --out data/live
 unset ANTHROPIC_API_KEY
 ```
 
+The key is read from the environment on every request and is never stored on the object, logged,
+or written into the report — there are tests asserting all four.
+
 ---
 
-## 4. Run the tests
+## 6. Run the tests
 
 ```bash
 cd llm_insights
@@ -108,17 +176,21 @@ cd llm_insights/src
 python3 -m unittest discover -s ../tests -t .. -v
 ```
 
-**177 tests.** The command above is the one that works — `-t .` fails because `tests/` is a
-sibling of `src/`, not a child.
+**228 tests.** The `-t .` form fails because `tests/` is a sibling of `src/`, not a child.
 
 The suite that matters most is `tests/test_summary.py`. It asks 22 questions of the data, answers
 each one twice — once from the full arrays and once from the summary alone — and asserts the two
 agree. It also includes a negative control that corrupts the summary and asserts the same checks
 then fail, so the suite is provably not vacuous.
 
+`tests/test_subscription.py` covers the two keyless backends. No test there runs the real CLI or
+touches the network: the subprocess boundary is crossed only through an injected transport or a
+stub executable written into a temp directory, and the response fixtures mirror a real
+`claude -p --output-format json` envelope captured from the CLI.
+
 ---
 
-## 5. What the pieces are
+## 7. What the pieces are
 
 | Module | What it does |
 |---|---|
@@ -127,7 +199,9 @@ then fail, so the suite is provably not vacuous.
 | `summary/profiles.py` | Fields collapsed onto normalized arc length, 25 points. |
 | `summary/briefing.py` | Assembles the ~3,200-token briefing the model reads. |
 | `harness/` | The falsifier: six executable primitives, strict parsing, a runner that never raises. |
-| `agent/` | Generator backends (anthropic / transcript / echo), the investigate loop, the CLI. |
+| `agent/generator.py` | The prompts, the response parser, and the API-key backends. |
+| `agent/subscription.py` | The keyless backends: Claude Code CLI and the paste fallback. |
+| `agent/loop.py`, `agent/run.py` | The investigate loop and the CLI. |
 | `cards/` | Card model and the markdown + HTML report renderer. |
 
 Data flow:
@@ -142,20 +216,31 @@ FSG output  ->  io  ->  summary  ->  briefing  ->  generator (LLM)
                                               cards  ->  report.html
 ```
 
+Nothing downstream of the generator can tell which backend wrote a claim. That is what makes
+swapping them safe, and it is why adding a keyless backend changed no verification code.
+
 ---
 
-## 6. Useful flags
+## 8. Every flag
 
 ```
---generator {anthropic,transcript,echo}   backend (default: transcript)
---transcript PATH                         recorded run to replay
+--generator {claude-cli,anthropic,transcript,paste,echo}
+                                          backend (default: claude-cli)
 --question TEXT                           the question to investigate
 --n INT                                   how many hypotheses to ask for (default 5)
---model TEXT                              model id, anthropic backend only
---out DIR                                 where cards and report go (default data/)
+--model TEXT                              model id (claude-cli and anthropic)
+--out DIR                                 where cards and report go (default: data/)
+--dry-run                                 print the prompt and its size; call nothing
+
+--max-calls INT                           call ceiling         (claude-cli, default 12)
+--max-budget-usd FLOAT                    cost ceiling in USD  (claude-cli, default 0.50)
+--claude-binary PATH                      claude executable, if not on PATH
+--paste-dir PATH                          where --generator paste writes its files
+
+--transcript PATH                         recorded run to replay
 --root PATH                               dataset root (defaults to ../one_way_fsg_model)
---no-narrow                               don't ask for a narrowed claim after a failure
 --briefing-file PATH                      use a saved briefing instead of rebuilding it
+--no-narrow                               don't ask for a narrowed claim after a failure
 --log-level {DEBUG,INFO,WARNING,ERROR}
 ```
 
@@ -171,12 +256,35 @@ print(build_briefing(Dataset('../one_way_fsg_model')))
 
 ---
 
-## 7. Known limits, stated plainly
+## 9. If the live backend fails
 
+The error message is the CLI's own, which is where the real cause is reported. Common ones:
+
+| Message contains | What to do |
+|---|---|
+| `is not on PATH` | `npm install -g @anthropic-ai/claude-code`, then `claude` to log in. |
+| `/login`, `Invalid API key` | Run `claude` once interactively and log in. |
+| `unknown model`, `not available on your plan` | The tool retries once on Sonnet automatically. If it still fails, pass `--model sonnet` explicitly. |
+| `unknown option` | The tool retries once with a minimal command line, keeping fewer guardrails. Nothing to do. |
+| limit or allowance exhausted | Fall back to §3, the recorded replay. |
+| `stopping: this run has reached its $0.50 ceiling` | Working as intended. Raise it with `--max-budget-usd` if you meant to. |
+
+Whatever happens, §3 always works offline, so a demo is never dead.
+
+---
+
+## 10. Known limits, stated plainly
+
+- **The CLI backend is not a clean instrument.** Claude Code wraps the prompt in its own agent
+  instructions. This package replaces them with `--system-prompt` when the installed CLI
+  supports that flag, and concatenates otherwise; either way the wrapper is an uncontrolled
+  variable. Fine for a demo. For the roadmap's "run N questions, report the survival rate"
+  measurement, prefer `--generator anthropic` or `--generator paste`, where the prompt going in
+  is exactly the one this code built.
 - **Per-step solid stress exists for the healthy case only.** `extracted_fields/` and
   `dynamic_inputs/` were only generated for `flow_U0p0360`. Full-mesh von Mises for all three
   cases is available at step 14 only, via `grn_inputs/`. Installing `h5py` and reading
-  `solid_fields.h5` would unlock the full 15-step × 3-case stress evolution — that is the single
+  `solid_fields.h5` would unlock the full 15-step × 3-case stress evolution — the single
   highest-value next step.
 - **Only 5 of 23 GRN nodes were written out.** Ask about `SMAD23` and the harness refuses rather
   than inventing an answer. That is deliberate; card H6 in the demo shows it.
@@ -186,4 +294,4 @@ print(build_briefing(Dataset('../one_way_fsg_model')))
   undeformed cap and is not a simulation result.
 - **Logging uses stdlib `logging`, not loguru**, and tests are `unittest.TestCase` rather than
   pytest-native. Both were forced by a sandbox with no package installs; both run fine under your
-  venv now. See TASKS.md for the reconciliation notes.
+  venv now. See TASK-006.

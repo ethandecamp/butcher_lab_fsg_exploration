@@ -753,6 +753,31 @@ class TranscriptGenerator:
         model = self.recorded_from.get("model")
         return str(model) if model else None
 
+    @property
+    def recorded_question(self) -> str | None:
+        """The question the recorded run was answering, when the transcript says.
+
+        A replay reproduces recorded text regardless of the question it is given, so
+        a caller that asks a *different* question of a transcript would silently be
+        shown answers to the old one. Exposing this lets the CLI warn about that.
+
+        Two places may record it. A transcript written by
+        :func:`llm_insights.agent.loop.write_transcript` puts it in each proposal's
+        ``request`` block; a hand-authored one -- the shipped demo transcript is one --
+        records it only in the file-level ``recorded_from``. Both are checked, because
+        a warning that fires for only some transcripts is worse than none: it teaches
+        the reader that silence means agreement.
+
+        Returns:
+            The recorded question, or None when the transcript does not record one.
+        """
+        for entry in self._proposals:
+            request = entry.get("request")
+            if isinstance(request, Mapping) and request.get("question"):
+                return str(request["question"])
+        question = self.recorded_from.get("question")
+        return str(question) if question else None
+
     def propose(self, briefing: str, question: str, n: int) -> list[dict]:
         """Return the next recorded proposal.
 
@@ -893,22 +918,63 @@ class EchoGenerator:
 # --- Factory -----------------------------------------------------------------------
 
 
+#: Every backend name the CLI accepts, in the order they are documented.
+GENERATOR_KINDS: Final[tuple[str, ...]] = ("claude-cli", "anthropic", "transcript", "paste", "echo")
+
+
 def make_generator(
-    kind: str, *, transcript: str | Path | None = None, model: str | None = None
+    kind: str,
+    *,
+    transcript: str | Path | None = None,
+    model: str | None = None,
+    max_calls: int | None = None,
+    max_budget_usd: float | None = None,
+    binary: str | None = None,
+    paste_dir: str | Path | None = None,
 ) -> Generator:
     """Build a generator by name, for the CLI.
 
+    The subscription-backed backends live in
+    :mod:`llm_insights.agent.subscription` and are imported here lazily, so that
+    module can import this one for its prompts without a cycle.
+
     Args:
-        kind: ``"anthropic"``, ``"transcript"`` or ``"echo"``.
+        kind: One of :data:`GENERATOR_KINDS`.
         transcript: Path to the transcript file, required for ``"transcript"``.
-        model: Model id, used only by ``"anthropic"``.
+        model: Model id. Used by ``"anthropic"`` and ``"claude-cli"``, each of which
+            falls back to its own default when this is None.
+        max_calls: Call ceiling, used only by ``"claude-cli"``.
+        max_budget_usd: Cost ceiling in USD, used only by ``"claude-cli"``.
+        binary: Path to the ``claude`` executable, used only by ``"claude-cli"``.
+        paste_dir: Where prompt and reply files go, used only by ``"paste"``.
 
     Returns:
         The generator.
 
     Raises:
         ValueError: On an unknown kind, or a transcript kind with no path.
+        RuntimeError: If the chosen backend cannot reach its model, for example a
+            missing API key or a missing CLI.
     """
+    if kind == "claude-cli":
+        from llm_insights.agent.subscription import (
+            CLAUDE_BINARY,
+            DEFAULT_CLI_MODEL,
+            DEFAULT_MAX_BUDGET_USD,
+            DEFAULT_MAX_CALLS,
+            ClaudeCLIGenerator,
+        )
+
+        return ClaudeCLIGenerator(
+            model=model or DEFAULT_CLI_MODEL,
+            binary=binary or CLAUDE_BINARY,
+            max_calls=DEFAULT_MAX_CALLS if max_calls is None else max_calls,
+            max_budget_usd=(DEFAULT_MAX_BUDGET_USD if max_budget_usd is None else max_budget_usd),
+        )
+    if kind == "paste":
+        from llm_insights.agent.subscription import PasteGenerator
+
+        return PasteGenerator(workdir=paste_dir or "data/paste")
     if kind == "anthropic":
         return AnthropicGenerator(model=model or DEFAULT_MODEL)
     if kind == "transcript":
@@ -917,7 +983,7 @@ def make_generator(
         return TranscriptGenerator(transcript)
     if kind == "echo":
         return EchoGenerator()
-    raise ValueError(f"unknown generator {kind!r}; expected anthropic, transcript or echo")
+    raise ValueError(f"unknown generator {kind!r}; expected one of {', '.join(GENERATOR_KINDS)}")
 
 
 def generator_model(generator: Any) -> str | None:
@@ -945,6 +1011,7 @@ __all__ = [
     "API_KEY_ENV",
     "DEFAULT_MODEL",
     "ECHO_TEMPLATE",
+    "GENERATOR_KINDS",
     "TRANSCRIPT_SCHEMA_VERSION",
     "AnthropicGenerator",
     "EchoGenerator",

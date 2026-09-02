@@ -3,7 +3,9 @@
 LLM-driven hypothesis generation and verification over the AV cushion fluid-solid-growth (FSG)
 + gene-regulatory-network (GRN) model in `../one_way_fsg_model/`.
 
-**To run anything, see [`INSTRUCTIONS.md`](INSTRUCTIONS.md).**
+**To run anything, see [`INSTRUCTIONS.md`](INSTRUCTIONS.md).** No Anthropic API key is needed:
+the live backend reaches the model through the Claude Code CLI, which authenticates with a
+Claude subscription.
 
 ## What this is
 
@@ -64,6 +66,8 @@ llm_insights/
     ├── summary/           <- metrics, arc-length profiles, the briefing.
     ├── harness/           <- the falsifier: primitives, spec, runner.
     ├── agent/             <- generator backends, the investigate loop, the CLI.
+    │                         generator.py: prompts, parsing, API-key backends.
+    │                         subscription.py: the keyless backends (Claude Code CLI, paste).
     └── cards/             <- card model and the markdown/HTML report.
 ```
 
@@ -79,7 +83,10 @@ case. The narrowed claim that replaced it identifies why: 46% of the overflow do
 at the GRN's 100 Pa normalization ceiling, and clipped nodes all return the same pinned activity,
 which compresses spatial variance. That claim survived its own stricter test.
 
-**177 tests.** See `INSTRUCTIONS.md` §4.
+Any question can be asked, live, with no API key — see `INSTRUCTIONS.md` §2. A recorded replay
+of the demo run is always available offline as a fallback (§3).
+
+**228 tests.** See `INSTRUCTIONS.md` §6.
 
 ## Relationship to `one_way_fsg_model/`
 
