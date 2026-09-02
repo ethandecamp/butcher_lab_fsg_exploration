@@ -30,7 +30,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from llm_insights.agent.generator import TRANSCRIPT_SCHEMA_VERSION, generator_model
+from llm_insights.agent.generator import (
+    SYNTHESIS_TRANSCRIPT_SCHEMA_VERSION,
+    TRANSCRIPT_SCHEMA_VERSION,
+    generator_model,
+)
 from llm_insights.harness.runner import run, run_all
 from llm_insights.harness.spec import (
     Hypothesis,
@@ -48,6 +52,18 @@ SCHEMA_VERSION: str = "1"
 #: Longest rejection summary written into ``meta``; the full list lives in the
 #: transcript, which is written to disk beside the report.
 _SUMMARY_CHARS: int = 400
+
+#: The primitive whose noise guard :func:`apply_min_rel_diff_floor` raises, and the
+#: name of that guard on its signature. Both are looked up rather than assumed: a
+#: rename in the harness turns the floor into a no-op with a warning, not into a
+#: silent mis-application to the wrong parameter.
+_FLOOR_PRIMITIVE: str = "compare_metric"
+_FLOOR_PARAM: str = "min_rel_diff"
+
+#: Key added to an outcome's ``observed`` mapping when the operator's floor actually
+#: raised that claim's margin, so the card shows a reader that the stricter margin was
+#: imposed by whoever ran the tool rather than chosen by the model.
+FLOOR_OBSERVED_KEY: str = "min_rel_diff_floor"
 
 
 @dataclass(frozen=True)
@@ -131,6 +147,78 @@ def _unique_id(candidate: str, seen_ids: set[str]) -> str:
     raise ValueError(f"could not find a free id based on {candidate!r}")
 
 
+def apply_min_rel_diff_floor(h: Hypothesis, floor: float) -> tuple[Hypothesis, bool]:
+    """Raise one claim's noise guard to the operator's floor, never lower it.
+
+    ``compare_metric`` takes ``min_rel_diff``, the relative difference a claim must
+    clear to count as a difference at all, and its default of 0.0 admits floating-point
+    noise. An operator may set a floor so that a run cannot pass a claim on a
+    difference smaller than they consider meaningful.
+
+    It is a floor and not an override: the effective margin is
+    ``max(model_supplied, floor)``. A model that asked for a *stricter* margin keeps
+    it, because loosening a pre-registered rule after the fact -- even towards a
+    number an operator chose -- would be the one edit that could manufacture a pass.
+
+    Args:
+        h: The admissible hypothesis, before it runs.
+        floor: The minimum relative difference to require. 0.0 changes nothing.
+
+    Returns:
+        A tuple ``(hypothesis, raised)``. ``raised`` is True only when the floor
+        actually increased this claim's margin.
+    """
+    if floor <= 0 or h.test.primitive != _FLOOR_PRIMITIVE:
+        return h, False
+    supplied = h.test.params.get(_FLOOR_PARAM, 0.0)
+    try:
+        current = float(supplied)
+    except (TypeError, ValueError):
+        # A non-numeric guard is the harness's error to report, with its own message.
+        # Rewriting it here would replace that message with a confusing one.
+        LOG.warning(
+            "%s asked for a non-numeric %s (%r); leaving it for the harness to reject",
+            h.id,
+            _FLOOR_PARAM,
+            supplied,
+        )
+        return h, False
+    if current >= floor:
+        LOG.debug("%s already requires %s >= %s; the floor does not bind", h.id, current, floor)
+        return h, False
+    LOG.info(
+        "%s: raising %s from %s to the operator's floor of %s",
+        h.id,
+        _FLOOR_PARAM,
+        current,
+        floor,
+    )
+    params = dict(h.test.params)
+    params[_FLOOR_PARAM] = float(floor)
+    return replace(h, test=replace(h.test, params=params)), True
+
+
+def _record_floor(outcome: Outcome, floor: float) -> Outcome:
+    """Note the operator's floor in an outcome's observed values.
+
+    The card renders ``observed`` as "the values the decision rule used", which is
+    exactly what this is: the margin the claim was actually held to came from the
+    operator, not from the model, and a reader has to be able to see that on the card
+    rather than having to infer it from the provenance block.
+
+    Args:
+        outcome: The outcome of a claim whose margin the floor raised.
+        floor: The floor that raised it.
+
+    Returns:
+        A copy carrying :data:`FLOOR_OBSERVED_KEY`, or the outcome unchanged when the
+        test could not run and there are no observations to annotate.
+    """
+    if outcome.error is not None:
+        return outcome
+    return replace(outcome, observed={**outcome.observed, FLOOR_OBSERVED_KEY: float(floor)})
+
+
 def _refuted(pairs: Sequence[tuple[Hypothesis, Outcome]]) -> list[tuple[Hypothesis, Outcome]]:
     """Select the pairs the simulator actually refuted.
 
@@ -149,6 +237,7 @@ def investigate(
     n: int = 5,
     narrow_failures: bool = True,
     max_narrow_rounds: int = 1,
+    min_rel_diff_floor: float = 0.0,
 ) -> RunResult:
     """Run one investigation end to end.
 
@@ -168,6 +257,10 @@ def investigate(
             narrowing is attempted.
         max_narrow_rounds: How many successive narrowing rounds to allow. One round
             means a refuted claim may get a successor, but that successor may not.
+        min_rel_diff_floor: Smallest relative difference a ``compare_metric`` claim
+            may pass on, imposed by the operator. It is a floor, not an override: see
+            :func:`apply_min_rel_diff_floor`. The default of 0.0 changes nothing, so a
+            run that does not ask for a floor behaves exactly as it did before.
 
     Returns:
         The :class:`RunResult`. Its ``meta`` carries:
@@ -176,7 +269,9 @@ def investigate(
         ``generated_at`` (UTC ISO-8601), ``dataset_root``, ``question``,
         ``briefing_sha256``, ``schema_version``, and the counts ``n_proposed``,
         ``n_admissible``, ``n_rejected``, ``n_survived``, ``n_falsified``,
-        ``n_narrowed``, ``n_could_not_run``.
+        ``n_narrowed``, ``n_could_not_run``. When ``min_rel_diff_floor`` is greater
+        than zero it also carries ``min_rel_diff_floor`` and, if the floor actually
+        raised any claim's margin, ``min_rel_diff_floor_raised``.
 
         ``n_proposed`` counts every raw mapping the generator returned, from the
         proposal round and every narrowing round together; ``n_rejected`` counts those
@@ -205,7 +300,18 @@ def investigate(
 
     hypotheses, rejected = _validate(raw_list, seen_ids, transcript, "propose")
     n_rejected += rejected
+
+    floor = float(min_rel_diff_floor or 0.0)
+    raised_ids: set[str] = set()
+    for index, hypothesis in enumerate(hypotheses):
+        hypotheses[index], raised = apply_min_rel_diff_floor(hypothesis, floor)
+        if raised:
+            raised_ids.add(hypotheses[index].id)
+
     outcomes = run_all(ds, hypotheses)
+    for index, hypothesis in enumerate(hypotheses):
+        if hypothesis.id in raised_ids:
+            outcomes[index] = _record_floor(outcomes[index], floor)
     narrowed_parent_ids: set[str] = set()
 
     pending = list(zip(hypotheses, outcomes, strict=True))
@@ -224,7 +330,11 @@ def investigate(
             n_rejected += rejected
             if successor is None:
                 continue
+            successor, raised = apply_min_rel_diff_floor(successor, floor)
             successor_outcome = run(ds, successor)
+            if raised:
+                raised_ids.add(successor.id)
+                successor_outcome = _record_floor(successor_outcome, floor)
             hypotheses.append(successor)
             outcomes.append(successor_outcome)
             narrowed_parent_ids.add(parent.id)
@@ -241,6 +351,8 @@ def investigate(
         n_proposed=n_proposed,
         n_rejected=n_rejected,
         transcript=transcript,
+        min_rel_diff_floor=floor,
+        floor_raised_ids=raised_ids,
     )
     LOG.info(
         "run complete: %d admissible, %d survived, %d falsified, %d narrowed, %d could not run",
@@ -336,6 +448,8 @@ def _build_meta(
     n_proposed: int,
     n_rejected: int,
     transcript: Sequence[Mapping[str, Any]],
+    min_rel_diff_floor: float = 0.0,
+    floor_raised_ids: set[str] | None = None,
 ) -> dict[str, Any]:
     """Assemble the provenance and count block. See :func:`investigate` for the keys."""
     n_survived = sum(1 for o in outcomes if o.error is None and o.passed)
@@ -368,13 +482,21 @@ def _build_meta(
     }
     if summary:
         meta["rejection_reasons"] = summary
+    if min_rel_diff_floor > 0:
+        # Only recorded when a floor was actually asked for, so a run that does not use
+        # the flag writes exactly the provenance block it wrote before.
+        meta["min_rel_diff_floor"] = float(min_rel_diff_floor)
+        if floor_raised_ids:
+            meta["min_rel_diff_floor_raised"] = ", ".join(sorted(floor_raised_ids))
     replayed = getattr(generator, "recorded_from", None)
     if replayed:
         meta["replayed_from"] = json.dumps(dict(replayed), sort_keys=True, default=str)
     return meta
 
 
-def write_transcript(result: RunResult, path: str | Path) -> Path:
+def write_transcript(
+    result: RunResult, path: str | Path, synthesis: Mapping[str, Any] | None = None
+) -> Path:
     """Write a run's transcript in the format :class:`TranscriptGenerator` replays.
 
     The file records which backend originally produced the text, so a replay of it
@@ -383,27 +505,45 @@ def write_transcript(result: RunResult, path: str | Path) -> Path:
     Args:
         result: The run to record.
         path: Destination file. Parent directories are created.
+        synthesis: The narrative-summary entry from
+            :func:`llm_insights.agent.synthesis.transcript_entry`, or None when no
+            summary was requested. It is appended as one extra entry whose ``kind`` no
+            earlier reader looks at, and only its presence raises the file's
+            ``schema_version`` -- so a run without ``--synthesize`` still writes a
+            byte-identical version 1 transcript.
 
     Returns:
         The path written.
     """
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
+    entries = list(result.transcript)
+    version = TRANSCRIPT_SCHEMA_VERSION
+    if synthesis is not None:
+        entries.append(dict(synthesis))
+        version = SYNTHESIS_TRANSCRIPT_SCHEMA_VERSION
     payload = {
-        "schema_version": TRANSCRIPT_SCHEMA_VERSION,
+        "schema_version": version,
         "recorded_from": {
             "generator": result.meta.get("generator"),
             "model": result.meta.get("model"),
             "generated_at": result.meta.get("generated_at"),
             "question": result.question,
         },
-        "entries": list(result.transcript),
+        "entries": entries,
     }
     target.write_text(
         json.dumps(payload, indent=2, ensure_ascii=False, default=str) + "\n", encoding="utf-8"
     )
-    LOG.info("wrote transcript with %d entries to %s", len(result.transcript), target)
+    LOG.info("wrote transcript with %d entries to %s", len(entries), target)
     return target
 
 
-__all__ = ["SCHEMA_VERSION", "RunResult", "investigate", "write_transcript"]
+__all__ = [
+    "FLOOR_OBSERVED_KEY",
+    "SCHEMA_VERSION",
+    "RunResult",
+    "apply_min_rel_diff_floor",
+    "investigate",
+    "write_transcript",
+]

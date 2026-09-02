@@ -51,25 +51,28 @@ open data/live/report.html
 `--generator claude-cli` is the default, so it does not need to be typed. Roughly 6–10 model
 calls, about 30–90 seconds.
 
-To use a different model:
+To use a different model — Haiku is roughly a tenth the cost per call and is enough for a
+smoke test, though it has not produced the more interesting behaviours (see §10):
 
 ```bash
-PYTHONPATH=src python3 -m llm_insights.agent.run --model sonnet --question "..." --out data/live
+PYTHONPATH=src python3 -m llm_insights.agent.run --model haiku --question "..." --out data/live
 ```
 
 ### What it costs
 
-The default model is **Haiku**, the cheapest tier. On a subscription these calls draw down your
-rolling usage allowance rather than a bill; the CLI still reports a dollar-equivalent, and this
-tool prints the total when the run finishes:
+The default model is **Sonnet**. On a subscription these calls draw down your rolling usage
+allowance rather than a bill; the CLI still reports a dollar-equivalent, and this tool prints the
+total when the run finishes:
 
 ```
 Usage:       8 call(s), $0.1400, 41203 in / 15877 out tokens
 ```
 
-A measured single call on Haiku cost **$0.0161**, most of it the CLI's own ~7.5k-token system
-prompt. A full run is therefore around **$0.15–0.25 equivalent** — a rounding error against a
-Pro allowance. You can run the demo repeatedly without noticing.
+A measured single call on **Haiku** cost **$0.0161**, most of it the CLI's own ~7.5k-token
+system prompt, which is charged whatever the model. A full Haiku run is therefore around
+**$0.15–0.25 equivalent**. Sonnet has not been measured here; expect a few times that, so
+roughly **$0.50–1.00 equivalent** for a full run — still a rounding error against a Pro
+allowance. You can run the demo repeatedly without noticing.
 
 To see the exact prompt and its size before spending anything:
 
@@ -81,7 +84,7 @@ PYTHONPATH=src python3 -m llm_insights.agent.run --dry-run --question "..."
 
 | Guardrail | Effect |
 |---|---|
-| `--model haiku` (default) | Cheapest tier. Opus costs several times more per turn than Sonnet, Sonnet more than Haiku. |
+| `--model sonnet` (default) | Opus costs several times more per turn than Sonnet, Sonnet more than Haiku. Sonnet is the default because the behaviours worth showing — refusing an unanswerable question, correctly blaming a normalization artifact when narrowing — have only been observed from the stronger tiers. `--model haiku` is the cheap smoke test; it falls back to Haiku automatically if your account cannot reach Sonnet. |
 | `--max-calls 12` (default) | Hard ceiling on model calls. A full run makes 6–10, so this catches a runaway without firing normally. |
 | `--max-budget-usd 0.50` (default) | Cumulative ceiling. The run stops rather than continuing past it, and the same value is passed to the CLI as a per-call cap. |
 | Tools disabled, `--max-turns 1` | Each call is one round trip, not an agent session. A tool call would cost a second full-context request. |
@@ -247,6 +250,12 @@ swapping them safe, and it is why adding a keyless backend changed no verificati
 --claude-binary PATH                      claude executable, if not on PATH
 --paste-dir PATH                          where --generator paste writes its files
 
+--synthesize                              after verification, ask for a written summary
+                                          of the run and render it, fenced, at the top
+                                          of the report (default: off)
+--min-rel-diff FLOAT                      floor on the relative difference a
+                                          compare_metric claim must clear (default 0.0)
+
 --transcript PATH                         recorded run to replay
 --root PATH                               dataset root (defaults to ../one_way_fsg_model)
 --briefing-file PATH                      use a saved briefing instead of rebuilding it
@@ -266,6 +275,64 @@ print(build_briefing(Dataset('../one_way_fsg_model')))
 
 ---
 
+## 8b. Two flags worth knowing
+
+### `--synthesize` — a written summary of the run
+
+```bash
+PYTHONPATH=src python3 -m llm_insights.agent.run --question "..." --synthesize --out data/live
+```
+
+Off by default. When on, one extra model call is made **after every claim has already been
+verified**, asking for three to six sentences of plain English about what the run found. It is
+rendered at the top of the report, fenced, and labelled as narration rather than as a result.
+
+It cannot change a verdict. The harness is never re-entered, and the summary is written from the
+finished cards.
+
+Every number in the summary is checked against the cards before it renders. A numeral is allowed
+only if it matches a value in some card's `observed` (rounding is fine — `0.128` is accepted for
+an observed `0.12808567238007387`), appears verbatim in a claim or decision rule, or is a small
+integer no bigger than the number of cards. **Anything else and the summary is not rendered at
+all.** One retry is spent naming the offending numerals back to the model; if that also fails the
+summary is suppressed permanently and the provenance block says so:
+
+```
+- **Narrative summary:** suppressed: unsupported numerals ['0.003', '12']
+```
+
+A suppressed summary is always visible in the report. It is never dropped silently.
+
+Why the check exists: this is the one piece of model-written prose in a report whose whole claim
+is that no language model judged any result. Fencing it in the layout is not enough on its own,
+so the containment check is what actually keeps the claim true.
+
+### `--min-rel-diff` — an operator floor on the noise guard
+
+```bash
+PYTHONPATH=src python3 -m llm_insights.agent.run --question "..." --min-rel-diff 0.10 --out data/live
+```
+
+`compare_metric` takes a `min_rel_diff`: the relative difference two cases must show before an
+ordering counts. It defaults to `0.0`, so a proposal that omits it passes on any difference at
+all, including floating-point noise. This flag sets a floor beneath whatever the model asked for
+— the effective margin is `max(model_supplied, floor)`, so a model may be **stricter** than you
+but never looser. The floor is recorded in the provenance block and shown on every card it
+raised.
+
+`0.10` is a reasonable starting value: above float noise, and roughly at the 12% spread that the
+GRN grid choice alone produces (`mech_clipped_fraction` is 0.337 on the full mesh and 0.296 on
+the 80% grid). Two limits to know:
+
+- It applies only to `compare_metric`. **`metric_ordering` has no margin parameter at all**, so a
+  monotonicity claim still passes on an arbitrarily small step. Adding one is open work.
+- A single relative number does not fit every metric. For arc positions relative difference is the
+  wrong measure — 10% of `s=0.51` is 0.05, about the 25-point grid spacing — and for fractions
+  already in [0,1] an absolute floor near 0.01 is the meaningful one. Per-metric floors are open
+  work.
+
+---
+
 ## 9. If the live backend fails
 
 The error message is the CLI's own, which is where the real cause is reported. Common ones:
@@ -275,7 +342,7 @@ The error message is the CLI's own, which is where the real cause is reported. C
 | `No module named 'llm_insights'` | The editable install is not active in this shell. Every command here already sets `PYTHONPATH=src`, so this should not appear; if it does, you dropped that prefix. `pip install -e ".[dev]"` fixes it permanently. |
 | `is not on PATH` | `npm install -g @anthropic-ai/claude-code`, then `claude` to log in. |
 | `/login`, `Invalid API key` | Run `claude` once interactively and log in. |
-| `unknown model`, `not available on your plan` | The tool retries once on Sonnet automatically. If it still fails, pass `--model sonnet` explicitly. |
+| `unknown model`, `not available on your plan` | The tool retries once on Haiku automatically. If it still fails, pass `--model haiku` explicitly. |
 | `unknown option` | The tool retries once with a minimal command line, keeping fewer guardrails. Nothing to do. |
 | limit or allowance exhausted | Fall back to §3, the recorded replay. |
 | `stopping: this run has reached its $0.50 ceiling` | Working as intended. Raise it with `--max-budget-usd` if you meant to. |
@@ -286,6 +353,17 @@ Whatever happens, §3 always works offline, so a demo is never dead.
 
 ## 10. Known limits, stated plainly
 
+- **The survival rate is inflated, and you should say so before anyone works it out.** The
+  briefing prints every registered metric for all three cases, and `compare_metric` and
+  `metric_ordering` operate only on registered metrics. So a claim using either of those is
+  reading an answer that is already in its own prompt — four of the six primitives are lookups
+  rather than predictions. In the 2026-09-02 live run, all four lookup claims survived and the
+  single claim needing something the briefing did not state (a WSS/EndMT correlation) was
+  falsified. Quote the rate as a reading-comprehension score until a blind-briefing mode exists,
+  or classify each card as lookup vs. extrapolation and report the two rates separately.
+- **`--synthesize` has never been run against the real `claude` binary.** Every test covering it
+  runs against fakes and stub executables, including deliberately misbehaving ones. One live run
+  with the flag is the missing evidence; do it before showing the feature to anyone.
 - **The CLI backend is not a clean instrument.** Claude Code wraps the prompt in its own agent
   instructions. This package replaces them with `--system-prompt` when the installed CLI
   supports that flag, and concatenates otherwise; either way the wrapper is an uncontrolled

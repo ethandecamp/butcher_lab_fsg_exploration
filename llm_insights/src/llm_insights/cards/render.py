@@ -37,6 +37,17 @@ VERIFICATION_LINE: Final[str] = (
     "output. No language model judged any result."
 )
 
+#: Heading and subline for the optional model-written narration. The subline is not
+#: configurable either: the whole point of rendering the blurb inside a fence is that
+#: a reader cannot mistake it for a verified result, and a caller must not be able to
+#: soften the wording that says so.
+NARRATIVE_HEADING: Final[str] = "Narrative summary"
+NARRATIVE_SUBLINE: Final[str] = (
+    "Model-generated narration, not a verified result. Every number in it was checked "
+    "mechanically against the verified values below, but the wording is the model's. "
+    "The verdict table and the cards below are authoritative."
+)
+
 #: Human labels for the provenance keys ``meta`` is expected to carry. Any other key
 #: is rendered too, with its raw name title-cased.
 _META_LABELS: Final[dict[str, str]] = {
@@ -45,6 +56,10 @@ _META_LABELS: Final[dict[str, str]] = {
     "generated_at": "Generated",
     "generator": "Generator",
     "model": "Model",
+    "synthesis": "Narrative summary",
+    "synthesis_violations": "Narrative summary: unsupported numerals",
+    "min_rel_diff_floor": "Operator min_rel_diff floor",
+    "min_rel_diff_floor_raised": "Claims whose margin the floor raised",
 }
 _META_ORDER: Final[tuple[str, ...]] = tuple(_META_LABELS)
 
@@ -195,7 +210,12 @@ def _meta_items(meta: Mapping[str, Any]) -> list[tuple[str, str]]:
 # --- Markdown ---------------------------------------------------------------------
 
 
-def render_markdown(cards: Sequence[Card], question: str, meta: Mapping[str, Any]) -> str:
+def render_markdown(
+    cards: Sequence[Card],
+    question: str,
+    meta: Mapping[str, Any],
+    synthesis: str | None = None,
+) -> str:
     """Render the report as Markdown.
 
     Args:
@@ -203,6 +223,11 @@ def render_markdown(cards: Sequence[Card], question: str, meta: Mapping[str, Any
         question: The question the run set out to answer.
         meta: Provenance — dataset root, field values summarised, timestamp,
             generator, and model name where one was used.
+        synthesis: Optional model-written narration of the run, already checked by
+            :func:`llm_insights.agent.synthesis.check_numeric_containment`. It is
+            rendered above the tally, fenced by a heading and a subline that say it is
+            narration rather than a verdict. Defaults to None, which omits the section
+            entirely, so a report produced without ``--synthesize`` is unchanged.
 
     Returns:
         The complete Markdown document.
@@ -215,6 +240,17 @@ def render_markdown(cards: Sequence[Card], question: str, meta: Mapping[str, Any
         "",
         VERIFICATION_LINE,
         "",
+    ]
+    if synthesis:
+        lines += [
+            f"## {NARRATIVE_HEADING}",
+            "",
+            f"_{NARRATIVE_SUBLINE}_",
+            "",
+            f"> {synthesis.strip()}",
+            "",
+        ]
+    lines += [
         "| Verdict | Count |",
         "| --- | ---: |",
     ]
@@ -733,7 +769,52 @@ footer {
 """
 
 
-def render_html(cards: Sequence[Card], question: str, meta: Mapping[str, Any]) -> str:
+#: Styles for the narration callout, emitted only when there is a callout to style.
+#: Keeping them out of :data:`_CSS` is what makes a report produced without
+#: ``--synthesize`` byte-for-byte the file it was before this feature existed. Its
+#: colours are declared on the block itself rather than on ``:root``, so the two
+#: stylesheets stay independent, and they are deliberately none of the four verdict
+#: hues: the one unverified block on the page must not be readable as a verdict.
+_NARRATION_CSS: Final[str] = """
+.narration {
+  --narration: #6b6154;
+  --narration-tint: #efeade;
+  margin: 0 0 1.75rem;
+  padding: .95rem 1.15rem 1.05rem;
+  background: var(--narration-tint);
+  border: 2px dashed var(--narration);
+  max-width: 62ch;
+}
+.narration .tag {
+  display: inline-block;
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--narration);
+  border: 1.5px dashed var(--narration);
+  padding: .1rem .45rem;
+  margin-bottom: .55rem;
+}
+.narration .blurb { margin: 0 0 .55rem; font-size: 1.02rem; line-height: 1.5; }
+.narration .sub { margin: 0; font-size: .82rem; color: var(--ink-2); }
+
+@media (prefers-color-scheme: dark) {
+  .narration { --narration: #cbbfa6; --narration-tint: #262319; }
+}
+
+@media print {
+  .narration { break-inside: avoid; }
+}
+"""
+
+
+def render_html(
+    cards: Sequence[Card],
+    question: str,
+    meta: Mapping[str, Any],
+    synthesis: str | None = None,
+) -> str:
     """Render the report as one self-contained HTML document.
 
     The output has no external references of any kind — no fonts, no stylesheets, no
@@ -745,6 +826,10 @@ def render_html(cards: Sequence[Card], question: str, meta: Mapping[str, Any]) -
         question: The question the run set out to answer.
         meta: Provenance — dataset root, field values summarised, timestamp,
             generator, and model name where one was used.
+        synthesis: Optional model-written narration of the run, already checked by
+            :func:`llm_insights.agent.synthesis.check_numeric_containment`. It is
+            rendered in a dashed, tinted callout above the tally, in a colour that is
+            none of the four verdict hues. Defaults to None, which omits it.
 
     Returns:
         The complete HTML document, starting with its doctype.
@@ -758,11 +843,11 @@ def render_html(cards: Sequence[Card], question: str, meta: Mapping[str, Any]) -
         '<meta name="viewport" content="width=device-width, initial-scale=1">',
         f"<title>Falsification report — {_esc(question) if question else 'hypothesis cards'}"
         "</title>",
-        f"<style>{_CSS}</style>",
+        f"<style>{_CSS}{_NARRATION_CSS if synthesis else ''}</style>",
         "</head>",
         "<body>",
         '<div class="wrap">',
-        _html_masthead(question, meta, tally),
+        _html_masthead(question, meta, tally, synthesis),
         '<main class="blocks">',
     ]
 
@@ -785,7 +870,32 @@ def render_html(cards: Sequence[Card], question: str, meta: Mapping[str, Any]) -
     return "\n".join(parts)
 
 
-def _html_masthead(question: str, meta: Mapping[str, Any], tally: Mapping[str, int]) -> str:
+def _html_narration(synthesis: str | None) -> str:
+    """Render the model-written summary as an unmistakably unverified callout.
+
+    Args:
+        synthesis: The checked narration, or None.
+
+    Returns:
+        The callout markup, or an empty string when there is nothing to show.
+    """
+    if not synthesis:
+        return ""
+    return (
+        '<section class="narration" aria-label="Model-generated narrative summary">'
+        '<span class="tag">Model-generated narration · not a verdict</span>'
+        f'<p class="blurb">{_esc(synthesis.strip())}</p>'
+        f'<p class="sub">{_esc(NARRATIVE_SUBLINE)}</p>'
+        "</section>"
+    )
+
+
+def _html_masthead(
+    question: str,
+    meta: Mapping[str, Any],
+    tally: Mapping[str, int],
+    synthesis: str | None = None,
+) -> str:
     """Build the report header: question, verification line, counts, legend, provenance."""
     tiles = "".join(
         f'<li class="{v.slug}"><span class="n">{tally[v.label]}</span>'
@@ -811,6 +921,7 @@ def _html_masthead(question: str, meta: Mapping[str, Any], tally: Mapping[str, i
         '<p class="eyebrow">Hypothesis cards · verified against the simulation</p>'
         f'<h1 class="question">{heading}</h1>'
         f'<p class="verification">{_esc(VERIFICATION_LINE)}</p>'
+        f"{_html_narration(synthesis)}"
         f'<ul class="tally">{tiles}</ul>'
         f'<ul class="legend">{legend}</ul>'
         f"{provenance}"
@@ -977,6 +1088,7 @@ def write_report(
     question: str,
     meta: Mapping[str, Any],
     out_dir: str | Path,
+    synthesis: str | None = None,
 ) -> tuple[Path, Path]:
     """Write ``report.md`` and ``report.html`` into ``out_dir``.
 
@@ -985,6 +1097,8 @@ def write_report(
         question: The question the run set out to answer.
         meta: Provenance passed through to both renderers.
         out_dir: Destination directory, created if it does not exist.
+        synthesis: Optional checked narration, passed through to both renderers.
+            Defaults to None, which omits the section from both.
 
     Returns:
         A tuple of ``(markdown_path, html_path)``.
@@ -993,7 +1107,7 @@ def write_report(
     target.mkdir(parents=True, exist_ok=True)
     md_path = target / "report.md"
     html_path = target / "report.html"
-    md_path.write_text(render_markdown(cards, question, meta), encoding="utf-8")
-    html_path.write_text(render_html(cards, question, meta), encoding="utf-8")
+    md_path.write_text(render_markdown(cards, question, meta, synthesis), encoding="utf-8")
+    html_path.write_text(render_html(cards, question, meta, synthesis), encoding="utf-8")
     LOG.info("wrote report for %d cards to %s and %s", len(cards), md_path, html_path)
     return md_path, html_path

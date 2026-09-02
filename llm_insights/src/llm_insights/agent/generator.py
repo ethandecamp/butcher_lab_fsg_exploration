@@ -36,6 +36,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Final, Protocol, runtime_checkable
 
+from llm_insights.agent.synthesis import recorded_blurb
 from llm_insights.harness import primitives as _primitives
 from llm_insights.harness.primitives import PRIMITIVES
 
@@ -84,7 +85,16 @@ _PARAM_NOTES: Final[dict[str, str]] = {
 _WRAPPER_KEYS: Final[tuple[str, ...]] = ("hypotheses", "claims", "items", "results", "data")
 
 #: Version stamp written into transcripts, so a future format change is detectable.
+#: Deliberately unchanged by the narrative-summary feature: a run without
+#: ``--synthesize`` writes exactly the file it wrote before, byte for byte. Only a
+#: transcript that actually carries a ``"synthesize"`` entry is stamped
+#: :data:`SYNTHESIS_TRANSCRIPT_SCHEMA_VERSION`, so the version still tells a reader
+#: which shape the file has.
 TRANSCRIPT_SCHEMA_VERSION: Final[str] = "1"
+
+#: Version stamp for a transcript that records a narrative summary. Version 1 readers
+#: ignore the extra entry, so a version 2 file still replays anywhere version 1 does.
+SYNTHESIS_TRANSCRIPT_SCHEMA_VERSION: Final[str] = "2"
 
 
 @runtime_checkable
@@ -95,6 +105,13 @@ class Generator(Protocol):
     :func:`llm_insights.harness.spec.hypothesis_from_dict` schema. Validation is the
     caller's job on purpose: a generator that pre-filtered its own output could drop
     a malformed claim silently, and the loop is required to count those.
+
+    A backend may *optionally* also expose ``synthesize(prompt: str) -> str | None``,
+    which writes the plain-English narration described in
+    :mod:`llm_insights.agent.synthesis`. It is deliberately not a method of this
+    protocol: the capability is checked with :func:`getattr`, exactly as
+    :mod:`llm_insights.cards.card` reads harness objects, so a backend written before
+    that feature existed keeps satisfying this protocol without changing a line.
 
     Attributes:
         name: Provenance string recorded in the run metadata, e.g.
@@ -735,6 +752,10 @@ class TranscriptGenerator:
         self._proposals = [e for e in self._entries if e.get("kind") == "propose"]
         self._narrowings = [e for e in self._entries if e.get("kind") == "narrow"]
         self._next_proposal = 0
+        #: The narrative summary this transcript recorded, or None for a transcript
+        #: written before that feature existed. Read once here so that
+        #: :meth:`synthesize` cannot drift from what the file holds.
+        self.recorded_synthesis: str | None = recorded_blurb(self._entries)
         self.name = f"transcript:{self.path}"
         LOG.info(
             "replaying %s: %d proposal(s), %d narrowing(s)",
@@ -830,6 +851,28 @@ class TranscriptGenerator:
                 return items[0] if items else None
         LOG.info("%s records no narrowing for %s", self.path, failed_id)
         return None
+
+    def synthesize(self, prompt: str) -> str | None:
+        """Return the narrative summary this transcript recorded, if it has one.
+
+        The prompt is accepted to match the optional capability's signature and is
+        not consulted, for the same reason :meth:`propose` ignores its question: a
+        replay reproduces recorded text, and re-deriving it would make a replay
+        non-reproducible. The recorded text is re-checked by
+        :func:`llm_insights.agent.synthesis.check_numeric_containment` on every
+        replay, so a summary that was suppressed when it was recorded is suppressed
+        again rather than being waved through by having once been written down.
+
+        Args:
+            prompt: Ignored.
+
+        Returns:
+            The recorded summary, or None when the transcript records none.
+        """
+        del prompt
+        if self.recorded_synthesis is None:
+            LOG.info("%s records no narrative summary", self.path)
+        return self.recorded_synthesis
 
 
 # --- Offline stub ------------------------------------------------------------------
@@ -1012,6 +1055,7 @@ __all__ = [
     "DEFAULT_MODEL",
     "ECHO_TEMPLATE",
     "GENERATOR_KINDS",
+    "SYNTHESIS_TRANSCRIPT_SCHEMA_VERSION",
     "TRANSCRIPT_SCHEMA_VERSION",
     "AnthropicGenerator",
     "EchoGenerator",

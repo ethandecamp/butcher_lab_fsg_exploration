@@ -66,14 +66,18 @@ LOG = logging.getLogger(__name__)
 #: Executable name looked up on PATH.
 CLAUDE_BINARY: Final[str] = "claude"
 
-#: Default model. The cheapest tier that can hold the output schema, chosen so a demo
-#: run costs a negligible slice of a subscription's rolling allowance.
-DEFAULT_CLI_MODEL: Final[str] = "haiku"
+#: Default model. Sonnet rather than the cheaper Haiku because the behaviours that make
+#: a run worth reading -- refusing a question the data cannot answer, and correctly
+#: attributing a refuted claim to a normalization artifact when narrowing -- have only
+#: been observed from the stronger tiers. A run is roughly 40k input and 16k output
+#: tokens, a small slice of a subscription's rolling allowance, and the per-call cost is
+#: dominated by the CLI's own ~7.5k-token system prompt either way.
+DEFAULT_CLI_MODEL: Final[str] = "sonnet"
 
-#: Model switched to when the account cannot use :data:`DEFAULT_CLI_MODEL`. A run is
-#: roughly 40k input and 16k output tokens, so this is still a small slice of a
-#: subscription allowance; set it to None to fail loudly instead of switching.
-FALLBACK_CLI_MODEL: Final[str] = "sonnet"
+#: Model switched to when the account cannot use :data:`DEFAULT_CLI_MODEL`. Haiku is the
+#: cheapest tier that can hold the output schema, so a run still completes on an account
+#: that cannot reach Sonnet; set it to None to fail loudly instead of switching.
+FALLBACK_CLI_MODEL: Final[str] = "haiku"
 
 #: Substrings that mark a CLI failure as "this account cannot use that model" rather
 #: than a transport problem. Matched case-insensitively against the CLI's own stderr.
@@ -373,7 +377,7 @@ class ClaudeCLIGenerator:
                 return flag, ""
         return None
 
-    def build_argv(self, prompt: str) -> list[str]:
+    def build_argv(self, prompt: str, system: str | None = None) -> list[str]:
         """Build the full command line for one call.
 
         Only flags the installed CLI advertises are included, so an older version runs
@@ -382,13 +386,18 @@ class ClaudeCLIGenerator:
         Args:
             prompt: The complete prompt text, already including the system prompt when
                 this CLI cannot take one separately.
+            system: System prompt to send instead of
+                :func:`~llm_insights.agent.generator.build_system_prompt`. Defaults to
+                None, which sends that one, so every existing call site builds exactly
+                the command line it built before. The narrative-summary call passes its
+                own, because the hypothesis prompt orders strict JSON and no prose.
 
         Returns:
             The argv list, ready for :func:`subprocess.run`.
         """
         argv = [self.binary, "-p", prompt, "--output-format", "json", "--model", self.model]
         if "--system-prompt" in self.flags:
-            argv += ["--system-prompt", build_system_prompt()]
+            argv += ["--system-prompt", system if system is not None else build_system_prompt()]
         if "--max-turns" in self.flags:
             argv += ["--max-turns", "1"]
         tools = self.tool_restriction
@@ -516,7 +525,7 @@ class ClaudeCLIGenerator:
                 f"(${self.cost_usd:.4f} used). Raise it with --max-budget-usd."
             )
 
-    def full_prompt(self, user_text: str) -> str:
+    def full_prompt(self, user_text: str, system: str | None = None) -> str:
         """Return the prompt string passed to the CLI as the ``-p`` argument.
 
         When the CLI accepts ``--system-prompt`` the system half is sent separately
@@ -525,13 +534,16 @@ class ClaudeCLIGenerator:
 
         Args:
             user_text: The varying half of the request.
+            system: System prompt to use instead of the hypothesis one. Defaults to
+                None, which keeps the existing behaviour exactly.
 
         Returns:
             The text for ``-p``.
         """
         if "--system-prompt" in self.flags:
             return user_text
-        return f"{build_system_prompt()}\n\n---\n\n{user_text}"
+        head = system if system is not None else build_system_prompt()
+        return f"{head}\n\n---\n\n{user_text}"
 
     def can_fall_back(self, message: str) -> bool:
         """Report whether a failure is "this account cannot use that model".
@@ -553,7 +565,7 @@ class ClaudeCLIGenerator:
         lowered = message.lower()
         return any(marker in lowered for marker in MODEL_UNAVAILABLE_MARKERS)
 
-    def call_once(self, user_text: str) -> str:
+    def call_once(self, user_text: str, system: str | None = None) -> str:
         """Run one subprocess call, retrying once without optional flags if needed.
 
         The flag probe reads ``--help``, which is a good signal and not a guarantee.
@@ -570,6 +582,8 @@ class ClaudeCLIGenerator:
 
         Args:
             user_text: The varying half of the request.
+            system: System prompt to use instead of the hypothesis one, or None to
+                use that one.
 
         Returns:
             The assistant's text.
@@ -577,10 +591,10 @@ class ClaudeCLIGenerator:
         Raises:
             RuntimeError: On any CLI or parsing failure.
         """
-        prompt = self.full_prompt(user_text)
+        prompt = self.full_prompt(user_text, system)
         self.calls += 1
         try:
-            return self.extract(self.transport(self.build_argv(prompt), self.workdir))
+            return self.extract(self.transport(self.build_argv(prompt, system), self.workdir))
         except RuntimeError as exc:
             # can_fall_back takes precedence: a model the account cannot use is not a
             # flag problem, and retrying it here would spend a call to learn nothing
@@ -599,7 +613,9 @@ class ClaudeCLIGenerator:
         self.check_budget()
         self.calls += 1
         return self.extract(
-            self.transport(self.build_argv(self.full_prompt(user_text)), self.workdir)
+            self.transport(
+                self.build_argv(self.full_prompt(user_text, system), system), self.workdir
+            )
         )
 
     @staticmethod
@@ -615,7 +631,7 @@ class ClaudeCLIGenerator:
         lowered = message.lower()
         return any(marker in lowered for marker in UNKNOWN_OPTION_MARKERS)
 
-    def complete(self, user_text: str) -> str:
+    def complete(self, user_text: str, system: str | None = None) -> str:
         """Make one call and return the assistant's text.
 
         If the account cannot use :attr:`model`, the call is retried once on
@@ -624,6 +640,8 @@ class ClaudeCLIGenerator:
 
         Args:
             user_text: The varying half of the request.
+            system: System prompt to use instead of the hypothesis one. Defaults to
+                None, which is what every call other than the narrative summary uses.
 
         Returns:
             The assistant's text.
@@ -634,7 +652,7 @@ class ClaudeCLIGenerator:
         """
         self.check_budget()
         try:
-            return self.call_once(user_text)
+            return self.call_once(user_text, system)
         except BudgetExceededError:
             raise
         except RuntimeError as exc:
@@ -650,7 +668,7 @@ class ClaudeCLIGenerator:
         self.model_fallback_used = True
         self.name = f"claude-cli:{self.model}"
         self.check_budget()
-        return self.call_once(user_text)
+        return self.call_once(user_text, system)
 
     def propose(self, briefing: str, question: str, n: int) -> list[dict]:
         """Ask the CLI for ``n`` hypotheses.
@@ -679,6 +697,39 @@ class ClaudeCLIGenerator:
         """
         LOG.info("asking the Claude Code CLI to narrow %s", failed.get("id"))
         return parse_single(self.complete(build_narrow_prompt(briefing, failed, outcome)))
+
+    def synthesize(self, prompt: str) -> str | None:
+        """Write the plain-English narration of a finished run.
+
+        This is one additional call, made after every verdict is already fixed, and it
+        runs through :meth:`complete` like any other -- so the call ceiling, the cost
+        ceiling, ``--max-turns 1``, the tool ban, the empty working directory and the
+        scrubbed environment all apply to it unchanged. It cannot breach the ceiling:
+        :meth:`check_budget` runs before the subprocess, not after it, so a run that
+        has spent its allowance raises here and
+        :func:`llm_insights.agent.synthesis.synthesize` records the failure and leaves
+        every verified result intact.
+
+        The one thing that differs is the system prompt. The hypothesis system prompt
+        orders strict JSON with no prose, which is precisely the wrong instruction for
+        this call, so :data:`~llm_insights.agent.synthesis.SYNTHESIS_SYSTEM_PROMPT` is
+        sent instead.
+
+        Args:
+            prompt: The complete user turn, built by
+                :func:`llm_insights.agent.synthesis.build_synthesis_prompt`.
+
+        Returns:
+            The summary text, or None if the CLI returned nothing usable.
+
+        Raises:
+            BudgetExceededError: If a ceiling is reached before the call.
+            RuntimeError: On any CLI failure.
+        """
+        from llm_insights.agent.synthesis import SYNTHESIS_SYSTEM_PROMPT
+
+        LOG.info("asking the Claude Code CLI (%s) for a narrative summary", self.model)
+        return self.complete(prompt, SYNTHESIS_SYSTEM_PROMPT) or None
 
     def close(self) -> None:
         """Remove the scratch directory. Safe to call more than once."""

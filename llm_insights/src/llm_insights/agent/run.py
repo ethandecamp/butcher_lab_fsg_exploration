@@ -12,6 +12,11 @@ front of an audience than a backend that refuses to start. A transcript replay i
 flag away, and the CLI backend refuses to run at all if the binary is missing.
 
 Whichever backend runs, its identity is written into the report's provenance block.
+
+Two flags are opt-in and default to off, so the documented commands behave exactly as
+they did before either existed: ``--synthesize`` adds one model call after verification
+and renders a checked plain-English summary above the verdict table, and
+``--min-rel-diff`` raises the floor a ``compare_metric`` claim must clear.
 """
 
 from __future__ import annotations
@@ -29,6 +34,7 @@ from llm_insights.agent.generator import (
     make_generator,
 )
 from llm_insights.agent.loop import investigate, write_transcript
+from llm_insights.agent.synthesis import synthesize, transcript_entry
 from llm_insights.cards.card import cards_from_run, cards_to_json
 from llm_insights.cards.render import write_report
 from llm_insights.io.dataset import Dataset
@@ -149,6 +155,28 @@ def build_parser() -> argparse.ArgumentParser:
         help="do not ask the generator to narrow refuted claims",
     )
     parser.add_argument(
+        "--synthesize",
+        action="store_true",
+        help=(
+            "after every claim has been verified, ask the model for a short "
+            "plain-English summary of the run and render it, clearly fenced, above "
+            "the verdict table. Off by default. The summary is checked numerically "
+            "against the verified cards before it is shown, and suppressed if it "
+            "cites a number the results do not support"
+        ),
+    )
+    parser.add_argument(
+        "--min-rel-diff",
+        type=float,
+        default=0.0,
+        help=(
+            "floor on the relative difference a compare_metric claim must clear "
+            "(default: 0.0, which changes nothing). It raises a margin the model set "
+            "lower and never lowers one it set higher, and the floor is recorded in "
+            "the report's provenance and on every card whose margin it raised"
+        ),
+    )
+    parser.add_argument(
         "--log-level",
         default="INFO",
         choices=("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"),
@@ -209,6 +237,10 @@ def _summarise(meta: dict[str, Any], paths: dict[str, Path]) -> str:
     ]
     if meta.get("replayed_from"):
         lines.append(f"Replay of:   {meta['replayed_from']}")
+    if meta.get("synthesis"):
+        lines.append(f"Synthesis:   {meta['synthesis']}")
+    if meta.get("min_rel_diff_floor"):
+        lines.append(f"Floor:       min_rel_diff >= {meta['min_rel_diff_floor']}")
     lines += [
         f"Dataset:     {meta.get('dataset_root')}",
         "",
@@ -358,6 +390,7 @@ def main(argv: list[str] | None = None) -> int:
             args.question,
             n=args.n,
             narrow_failures=not args.no_narrow,
+            min_rel_diff_floor=args.min_rel_diff,
         )
     except (RuntimeError, ValueError, OSError) as exc:
         _close(generator)
@@ -368,7 +401,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.generator == "claude-cli":
             print(
                 "hint: check `claude -p hello` works in this terminal. If the model "
-                "was refused, try --model sonnet. If your allowance is exhausted, run "
+                "was refused, try --model haiku. If your allowance is exhausted, run "
                 "--generator transcript --transcript data/demo_transcript.json to "
                 "replay the recorded demo.",
                 file=sys.stderr,
@@ -376,11 +409,22 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     cards = cards_from_run(result.hypotheses, result.outcomes)
+
+    # Synthesis runs here, after every verdict is fixed and the cards are frozen, and
+    # it can only add a paragraph to the report. Nothing below re-reads a verdict.
+    narration = None
+    synthesis_record = None
+    if args.synthesize:
+        outcome = synthesize(generator, result.question, cards)
+        result.meta.update(outcome.provenance())
+        narration = outcome.blurb
+        synthesis_record = transcript_entry(outcome, result.question, len(cards))
+
     out_dir = Path(args.out)
     cards_path = out_dir / "cards.json"
     cards_to_json(cards, cards_path)
-    md_path, html_path = write_report(cards, result.question, result.meta, out_dir)
-    transcript_path = write_transcript(result, out_dir / "transcript.json")
+    md_path, html_path = write_report(cards, result.question, result.meta, out_dir, narration)
+    transcript_path = write_transcript(result, out_dir / "transcript.json", synthesis_record)
 
     print(
         _summarise(

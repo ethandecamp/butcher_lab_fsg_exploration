@@ -617,6 +617,146 @@ in Ethan's venv before merging.**
   set. Ethan runs the 30-second smoke test in §2 of `INSTRUCTIONS.md` before showing anyone.
 
 
+## TASK-008 — Narrative summary of a run, and an operator floor on the noise guard
+
+**Status:** IN REVIEW
+**Owner:** Cowork, 2026-09-02
+**Size:** ~2 hours
+
+### Context
+Two gaps, both raised by Ethan on 2026-09-02 while preparing for the Dan meeting.
+
+1. Dan's stated pain is that raw simulation output is hard to turn into qualitative insight. A
+   verdict table is closer to that than 27.4M field values, but it is still not prose. The
+   missing piece is a short written summary of what a run found.
+2. `compare_metric` takes `min_rel_diff` with a default of `0.0`, so a proposal that omits it
+   passes on any difference at all, including floating-point noise. Nothing forced a
+   non-trivial margin; only the prompt discouraged a weak bar.
+
+Gap 1 is delicate. The project's single load-bearing claim is *"every verdict was produced by
+executable code; no language model judged any result."* A blurb is the one LLM output that would
+sit next to verified numbers, so it must be fenced hard enough that it cannot be mistaken for a
+result, and it must be mechanically checked rather than trusted.
+
+### What was built
+`src/llm_insights/agent/synthesis.py` (new) plus opt-in plumbing.
+
+- **Runs after verification and cannot alter a verdict.** It receives finished cards and
+  produces text; the harness is never re-entered.
+- **`check_numeric_containment(blurb, cards)`** is the safety property. Every numeral in the
+  blurb must match a value in some card's `observed` (within the tolerance implied by its own
+  displayed precision, so rounding is allowed), or appear verbatim in a card's `claim`,
+  `rationale` or `decision_rule`, or be a small integer no larger than the card count. Anything
+  else is a violation, and **on any violation the blurb is not rendered.** At most one retry is
+  spent, naming the offending numerals back to the model.
+- **A suppressed blurb is recorded, not silent.** The provenance block always states what
+  happened — rendered, suppressed with the offending numerals, or not produced at all.
+- **Capability is duck-typed** (`supports_synthesis`), so every pre-existing backend keeps
+  working untouched. `TranscriptGenerator` replays a recorded blurb when one is present, so
+  replays stay reproducible, and the old-format `data/demo_transcript.json` still replays.
+- **CLI: `--synthesize`, default off.** With the flag absent nothing about a run changes.
+- **CLI: `--min-rel-diff FLOAT`, default 0.0.** Applied as a *floor*, not an override: the
+  effective margin is `max(model_supplied, floor)`, so a model may be stricter than the operator
+  but never looser. Implemented in `agent/loop.py::apply_min_rel_diff_floor` by rewriting the
+  hypothesis's params **before** it reaches the primitive, so `harness/primitives.py` is
+  untouched. The floor is recorded in provenance and shown on every card it raised.
+
+**No file under `harness/`, `summary/`, `io/` or `cards/card.py` was modified.** That was a
+design constraint, not an accident: the verification core had to stay byte-identical for the
+"no language model judged any result" claim to survive this change.
+
+### Log
+
+**2026-09-02 — implementation and verification (Cowork).**
+
+Files added: `src/llm_insights/agent/synthesis.py`, `tests/test_synthesis.py`.
+Files modified: `agent/generator.py`, `agent/subscription.py`, `agent/loop.py`, `agent/run.py`,
+`cards/render.py`.
+
+Verified the verification core is untouched:
+
+```
+$ for f in harness/primitives.py harness/runner.py harness/spec.py summary/metrics.py \
+           summary/profiles.py summary/briefing.py io/dataset.py cards/card.py; do ...; done
+  unchanged  src/llm_insights/harness/primitives.py
+  unchanged  src/llm_insights/harness/runner.py
+  unchanged  src/llm_insights/harness/spec.py
+  unchanged  src/llm_insights/summary/metrics.py
+  unchanged  src/llm_insights/summary/profiles.py
+  unchanged  src/llm_insights/summary/briefing.py
+  unchanged  src/llm_insights/io/dataset.py
+  unchanged  src/llm_insights/cards/card.py
+```
+
+Test suite, run on the Cowork VM (`cd src && PYTHONPATH=. python3 -m unittest discover -s
+../tests -t ..`). 228 before this task, 278 after; the 5 errors are the pre-existing
+`ModuleNotFoundError: scipy` in `primitives.correlation`, unchanged in count and identity:
+
+```
+Ran 278 tests in 0.248s
+FAILED (errors=5)
+```
+
+`test_synthesis.py` alone:
+
+```
+Ran 50 tests in 0.010s
+OK
+```
+
+Default behavior unchanged. Replaying the shipped transcript without the new flags reproduces
+`data/report.md` exactly apart from the volatile provenance lines (dataset root, timestamp,
+transcript path):
+
+```
+$ diff <(grep -vE '^- \*\*(Dataset root|Generated|Generator|Replayed from):' data/report.md) \
+       <(grep -vE '^- \*\*(Dataset root|Generated|Generator|Replayed from):' /tmp/regress/report.md)
+  >>> NO OTHER DIFFERENCES <<<
+```
+
+`cards.json` matches except for two last-ulp float differences in H3/H3b `observed`
+(`0.1280856723800739` vs `0.12808567238007387`, ~3e-17). Both verdicts are unchanged, and every
+module that computes those numbers is byte-identical to HEAD, so this is numpy build variance
+between the cloud container that generated the committed file and this VM — not a code change.
+
+Containment check exercised against the real shipped cards:
+
+```
+COMPLIANT      violations=none -> WOULD RENDER
+HALLUCINATED   violations=['0.003', '12']
+```
+
+The compliant text rounds real values (`0.128` for an observed `0.12808567238007387`, `0.070`
+for `0.06974500392486829`) and is accepted; the hallucinated text invents a p-value and a
+replicate count and is caught. Neither number exists anywhere in the run.
+
+`--synthesize` against a transcript with no recorded blurb degrades as designed — no section
+rendered, and the provenance says why:
+
+```
+- **Narrative summary:** not rendered: the backend returned no text
+```
+
+`--min-rel-diff 0.9` flips H3b, whose observed `rel_diff` is 0.836, from SURVIVED to FALSIFIED,
+and records the floor:
+
+```
+| SURVIVED | 4 |          (was 5)
+| FALSIFIED | 1 |         (was 0)
+- **Operator min_rel_diff floor:** 0.9
+| min_rel_diff_floor | 0.9 |
+```
+
+**Not done, deliberately or otherwise:**
+- **The live `--synthesize` path has never been run against the real `claude` binary.** Same
+  gap TASK-007 had before Ethan's 13:26 smoke test: this VM's `claude` is a disabled stub, so
+  every test here is against fakes. One live run with `--synthesize` is the missing evidence.
+- `INSTRUCTIONS.md` does not yet document the two new flags.
+- ruff was not run; the pinned 0.16.5 is only in Ethan's venv, and the container's 0.15.11 would
+  reformat unrelated files.
+- Not committed. Porcelain `git commit` SIGBUSes on this mount, and `git status` exits 135
+  rather than reporting a clean tree — do not trust it here. Ethan commits from his own terminal.
+
 ## Open questions
 
 Questions for Ethan or Dan that are not scoped to a single task. Add, don't delete.

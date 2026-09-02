@@ -147,7 +147,7 @@ class GeneratorFixture(unittest.TestCase):
         run_patcher.start()
         self.addCleanup(run_patcher.stop)
 
-        self.gen = ClaudeCLIGenerator(model="haiku")
+        self.gen = ClaudeCLIGenerator(model="sonnet")
         self.addCleanup(self.gen.close)
         self.calls: list[list[str]] = []
 
@@ -193,7 +193,7 @@ class TestArgv(GeneratorFixture):
         argv = self.gen.build_argv("user text")
         self.assertEqual(argv[1], "-p")
         self.assertIn("--output-format", argv)
-        self.assertEqual(argv[argv.index("--model") + 1], "haiku")
+        self.assertEqual(argv[argv.index("--model") + 1], "sonnet")
         self.assertEqual(argv[argv.index("--max-turns") + 1], "1")
         self.assertEqual(argv[argv.index("--disallowedTools") + 1], FORBIDDEN_TOOLS)
         self.assertIn("--strict-mcp-config", argv)
@@ -296,13 +296,13 @@ class TestUnknownOptionRetry(GeneratorFixture):
     def test_a_model_failure_does_not_trigger_the_flag_retry(self):
         """Only one retry may fire for one failure.
 
-        Regression: ``"API Error: unknown model 'haiku'"`` matched an over-broad
+        Regression: ``"API Error: unknown model 'sonnet'"`` matched an over-broad
         ``"error: unknown"`` marker, so a model-availability failure spent a call on a
         pointless flag retry *and* permanently cleared the guardrails before the model
         switch ran. Caught by an end-to-end run against a stub, not by a unit test.
         """
         queue = [
-            "API Error: unknown model 'haiku' for this account",
+            "API Error: unknown model 'sonnet' for this account",
             envelope(fenced([VALID_CLAIM])),
         ]
 
@@ -437,7 +437,7 @@ class TestModelFallback(GeneratorFixture):
 
     def test_unavailable_model_falls_back_once(self):
         """A model the account cannot use is retried on the fallback, and named as such."""
-        queue = ["unknown model: haiku", envelope(fenced([VALID_CLAIM]))]
+        queue = ["unknown model: sonnet", envelope(fenced([VALID_CLAIM]))]
 
         def transport(argv: list[str], cwd: str) -> str:  # noqa: ARG001 - protocol shape
             self.calls.append(list(argv))
@@ -465,24 +465,24 @@ class TestModelFallback(GeneratorFixture):
         with self.assertRaises(RuntimeError):
             self.gen.complete("anything")
         self.assertEqual(len(self.calls), 1)
-        self.assertEqual(self.gen.model, "haiku")
+        self.assertEqual(self.gen.model, "sonnet")
 
     def test_fallback_happens_at_most_once(self):
         """A second unavailable-model error is not retried again."""
         self.gen.model_fallback_used = True
-        self.assertFalse(self.gen.can_fall_back("unknown model: haiku"))
+        self.assertFalse(self.gen.can_fall_back("unknown model: sonnet"))
 
     def test_fallback_disabled_when_none(self):
         """``fallback_model=None`` means fail loudly."""
         self.gen.fallback_model = None
-        self.assertFalse(self.gen.can_fall_back("unknown model: haiku"))
+        self.assertFalse(self.gen.can_fall_back("unknown model: sonnet"))
 
     def test_budget_error_is_not_a_fallback_trigger(self):
         """A ceiling must never be escaped by switching model."""
         self.gen.max_calls = 0
         with self.assertRaises(BudgetExceededError):
             self.gen.complete("anything")
-        self.assertEqual(self.gen.model, "haiku")
+        self.assertEqual(self.gen.model, "sonnet")
 
 
 class TestProposeAndNarrow(GeneratorFixture):
@@ -507,7 +507,7 @@ class TestProposeAndNarrow(GeneratorFixture):
 
     def test_name_records_the_backend_and_model(self):
         """Provenance must not be mistakable for an API call or a replay."""
-        self.assertEqual(self.gen.name, "claude-cli:haiku")
+        self.assertEqual(self.gen.name, "claude-cli:sonnet")
 
     def test_usage_summary_reports_what_was_spent(self):
         """The closing line names calls, cost and tokens."""
@@ -592,7 +592,7 @@ class TestRealSubprocess(unittest.TestCase):
     def test_a_real_subprocess_round_trip(self):
         """The generator runs the executable, reads its envelope, and cleans up."""
         with mock.patch.dict(os.environ, {API_KEY_ENV: "sk-ant-should-not-propagate"}):
-            gen = ClaudeCLIGenerator(model="haiku", binary=str(self.stub))
+            gen = ClaudeCLIGenerator(model="sonnet", binary=str(self.stub))
             workdir = gen.workdir
             try:
                 items = gen.propose("briefing", "question", 1)
@@ -620,7 +620,7 @@ class TestRealSubprocess(unittest.TestCase):
             encoding="utf-8",
         )
         failing.chmod(failing.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
-        gen = ClaudeCLIGenerator(model="haiku", binary=str(failing))
+        gen = ClaudeCLIGenerator(model="sonnet", binary=str(failing))
         self.addCleanup(gen.close)
         with self.assertRaises(RuntimeError) as caught:
             gen.propose("briefing", "question", 1)
@@ -690,7 +690,7 @@ class TestFactory(unittest.TestCase):
                 return_value=mock.Mock(stdout=FULL_HELP, stderr="", returncode=0),
             ),
         ):
-            gen = make_generator("claude-cli", model="haiku", max_calls=3, max_budget_usd=0.25)
+            gen = make_generator("claude-cli", model="sonnet", max_calls=3, max_budget_usd=0.25)
         self.addCleanup(gen.close)
         self.assertIsInstance(gen, ClaudeCLIGenerator)
         self.assertEqual(gen.max_calls, 3)
