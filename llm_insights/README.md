@@ -98,7 +98,7 @@ which compresses spatial variance. That claim survived its own stricter test.
 Any question can be asked, live, with no API key — see `INSTRUCTIONS.md` §2. A recorded replay
 of the demo run is always available offline as a fallback (§3).
 
-**228 tests.** See `INSTRUCTIONS.md` §6.
+**356 tests, 0 failures** (measured 2026-09-07). See `INSTRUCTIONS.md` §6.
 
 ## Relationship to `one_way_fsg_model/`
 

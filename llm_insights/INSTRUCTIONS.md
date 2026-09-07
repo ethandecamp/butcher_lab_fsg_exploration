@@ -199,7 +199,9 @@ cd llm_insights/src
 python3 -m unittest discover -s ../tests -t .. -v
 ```
 
-**228 tests.** The `-t .` form fails because `tests/` is a sibling of `src/`, not a child.
+**356 tests, 0 failures** (measured 2026-09-07). The `-t .` form fails because `tests/` is a
+sibling of `src/`, not a child. Five tests — the scipy oracle layer in
+`tests/test_correlation_math.py` — skip wherever scipy is absent and run inside the venv.
 
 Neither test command needs `PYTHONPATH`: pytest picks up `pythonpath = ["src"]` from
 `pyproject.toml`, and the unittest form gets it from running inside `src/`.
