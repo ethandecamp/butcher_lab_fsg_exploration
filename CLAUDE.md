@@ -37,7 +37,15 @@ previously generated output becomes meaningless.
 
 That means: do not edit, refactor, reformat, lint, "fix", or reorganize any file in that
 folder. Import from it, read its outputs, and wrap it in new code instead. The same applies to
-`RESOURCES.md` and `resources_for_ethan/`.
+`resources_for_ethan/` — those are Dan's handoff files, and nothing in that folder gets renamed,
+edited, or deleted.
+
+**`RESOURCES.md` is the one exception, and only in one direction.** It is this project's own
+index, not handoff material, and its whole purpose is to spare the next reader a cold read. When
+a new file lands in `resources_for_ethan/`, **append an entry for it** in the existing house
+style (title line with citation, `*Summary:*`, `*Takeaways:*` aimed at this project). What stays
+prohibited is rewriting, reorganizing, condensing, or reformatting entries that are already
+there — that destroys work someone did by reading a source end to end.
 
 If something in there looks like a genuine bug (for example the `MECH_MAX` normalization
 clipping ~44% of the overflow case), **do not patch it.** Write it up under **Open questions**

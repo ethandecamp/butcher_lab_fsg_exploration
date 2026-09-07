@@ -49,6 +49,13 @@ questions are answered twice, once from the full arrays and once from the summar
 answers must agree. `tests/test_summary.py` includes a negative control that corrupts the summary
 and asserts the same checks then fail.
 
+> Prior art: Zhu et al. 2026 (BioPINN-LM) hit the same wall in aortic biomechanics and compress
+> their stress field into a fixed-length 42-dim "MechToken" before handing it to an LLM. Their
+> ablation found structured per-region statistics beat raw nodal samples (87.4% vs. 84.1%
+> downstream), which is the closest published support for this design. They verify the
+> compression only by variance retained (94.1%); the round-trip test above is stricter. See
+> `../RESOURCES.md` §1.
+
 **Pre-registration.** A claim carries its decision rule before the outcome is known. Prediction
 first, result second.
 

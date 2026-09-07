@@ -23,7 +23,9 @@ substitutes for opening the deck.
 
 ## 1. Core methodology: LLMs for hypothesis generation
 
-The two most directly relevant documents in the folder — read these first.
+The three most directly relevant documents in the folder — read these first. The Zhu et al.
+PINN/LLM paper is the newest addition and the closest published analog to what this project
+is building.
 
 ### [`LLMs for Hypothesis Generation.pdf`](resources_for_ethan/LLMs%20for%20Hypothesis%20Generation.pdf)
 **Large Language Models for Causal Hypothesis Generation in Science** — perspective paper,
@@ -76,6 +78,159 @@ embedding-level fragility.
 - Small-scale and tractable: ~10M params, 2 transformer layers, trainable on a single GPU — this
   approach doesn't require large compute to replicate for a heart-valve dataset.
 - Code/data: github.com/juanfpoyatos/Zebraformer, zenodo.org/records/18559841.
+
+### [`PINNs and LLMs for Aortic Aneurysm Modeling.pdf`](resources_for_ethan/PINNs%20and%20LLMs%20for%20Aortic%20Aneurysm%20Modeling.pdf)
+**Physics-Informed Neural Networks Meet Multimodal Large Language Models: Biomechanical
+Simulation in Aortic Aneurysm** — *Cyborg and Bionic Systems* 7 (2026), Article 0658, Zhu et al.
+(Zhongshan Hospital, Fudan University), 19pp. DOI 10.34133/cbsystems.0658.
+**Added 2026-09-07, sent by Dan over Slack.** His stated reasons: they explain the mechanics of
+their model well, and he liked "the whole section on the LLM integration and the checks and
+balances they used to ensure reasonable responses." Read the guardrail list below as the part he
+is most likely to ask about.
+
+*Summary:* Surgical intervention on ascending thoracic aortic aneurysms (ATAA) is decided almost
+entirely on maximum diameter (>5.5 cm), but ~60% of type A dissections occur below that
+threshold. Wall stress is the mechanistically correct criterion, and getting it requires finite
+element analysis: 4–8 h of specialist setup plus ~39 min of solve per case. The authors build
+**BioPINN-LM**, a two-branch pipeline. A PINN embeds the Holzapfel–Gasser–Ogden (HGO)
+hyperelastic constitutive law and the equilibrium PDE into its loss, predicting the full 3-D
+Cauchy stress field from a CTA-derived geometry plus a pressure in 0.83 s at 6.12% mean relative
+error vs. FEA. That stress field is then compressed into a fixed-length 42-dimensional
+**"MechToken"** and fed as an extra modality to an instruction-tuned multimodal LLM, which
+answers clinical questions in prose grounded in regional mechanics instead of reverting to the
+diameter heuristic. Everything is validated on synthetic geometries and fictional clinical
+vignettes; the authors repeatedly and explicitly call it a research prototype, not a clinical
+tool.
+
+*PINN branch — how it actually works:* The network never outputs stress. It outputs only
+displacement `û(x; g, p_lum)`, and stress is derived from that by automatic differentiation
+through the physics: `F = ∇u + I` → HGO strain energy `Ψ` → second Piola–Kirchhoff
+`S = 2∂Ψ/∂C` → Cauchy `σ = J⁻¹FSFᵀ`. That is why deleting the constitutive law is the single
+most damaging ablation — it is not a regularizer, it is the operator that converts the network's
+output into the target quantity.
+- Inputs: 3-D coordinate `x`, a 169-dim geometry vector `g` (truncated spherical harmonics of the
+  luminal surface, L = 12), and scalar luminal pressure.
+- Architecture: random Fourier feature layer (σ_f = 2.0) → 8 hidden layers × 256, Swish
+  activations, skip connections re-injecting raw input at layers 4 and 6.
+- Four-term loss, weights λ_PDE = 1.0 / λ_BC = 10.0 / λ_data = 5.0 / λ_IC = 50.0 from grid search
+  over 20 held-out geometries, plus adaptive reweighting every 10 epochs from relative gradient
+  magnitudes (Wang et al.): equilibrium `∇·P = 0` at N_r = 8,192 collocation points sampled
+  **wall-thickness-weighted** so thin walls get more points where gradients are steepest;
+  traction BC with pressure as a follower load plus Dirichlet `u = 0` at root and distal ends;
+  a supervised term on N_d = 2,048 nodal displacements per FEA solution; and `(J−1)²`
+  near-incompressibility.
+- **The differentiability trick worth knowing:** HGO uses a Macaulay bracket `⟨x⟩ = max(x,0)`
+  because collagen fibers carry tension but not compression. It is non-differentiable at zero, so
+  autodiff breaks. They substitute `⟨x⟩_δ = (x + √(x²+δ²))/2` with δ = 10⁻⁴ — and then *prove it
+  does not matter*, sweeping δ from 10⁻⁶ to 10⁻² for <0.01% change in predictions. Same
+  discipline on the volumetric penalty K_p: a 0.1→10 MPa sweep shifts peak stress <0.4%. This
+  habit of justifying every approximation with a sensitivity sweep is the "good job explaining
+  the mechanics" Dan is referring to.
+- Training data: 1,247 synthetic geometries from a 7-parameter generator (D_max 35–70 mm, length
+  60–120 mm, eccentricity, wall thickness 1.2–3.0 mm, STJ ratio, curvature asymmetry, bulge
+  index), Latin-hypercube sampled with pairwise |ρ| < 0.06, meshed in Gmsh (2nd-order tets,
+  10k–25k elements), solved in FEBio at 12–45 min each; plus 86 published FEA solutions.
+  70/10/20 split. Material parameters drawn from a population distribution (Pasta et al.), not
+  patient-specific. Pressures 80/60 → 200/120 mmHg in 10 mmHg steps. Adam, lr 5×10⁻⁴, cosine
+  annealing, 200 epochs, 47 h on A100s.
+
+*LLM branch — the MechToken and the checks and balances:* Backbone is LLaVA-Med-v1.5 (7B): a
+CLIP ViT-L/14 encoder turns axial and sagittal maximum-intensity-projection images into 576
+visual tokens, and a Vicuna-7B decoder writes the report. The **MechToken** is 42 numbers —
+8 anatomical zones (anterior, posterior, left/right lateral, greater/lesser curvature, STJ,
+mid-ascending) × 5 von Mises statistics (mean, 95th percentile, max, coefficient of variation,
+max gradient magnitude) + 2 global features (peak-stress-to-strength ratio, and the ratio of a
+Laplace-law equivalent-cylinder stress to the predicted peak). Each element is linearly projected
+to a 768-dim embedding and fused with visual and text tokens through a cross-attention adapter
+(4 layers, 8 heads, 768-dim). Tuning is two-stage: freeze both encoders and train only the
+projection and adapter on 2,160 QA pairs for 5 epochs, then LoRA (rank 16, α = 32) over the full
+4,320 pairs for 3 epochs. The two branches are trained **sequentially, not end to end**, because
+the PINN must converge before its output is trustworthy enough to condition on.
+
+The guardrail stack, which is the part Dan singled out — eight layers, roughly outermost to
+innermost:
+1. **Grounding is architectural.** Every number the LLM cites descends from a physics-constrained
+   computation, not from the language model's priors.
+2. **A structured system prompt mandating four behaviors:** summarize peak and regional stress;
+   compare PSR against population thresholds; contextualize against diameter guidelines; and
+   *explicitly flag discrepancies* between stress-based and diameter-based stratification.
+3. **Trained to refuse fabrication** when stress information is unavailable, rather than filling
+   the gap.
+4. **Hallucination is scored, not assumed away** — "presence of falsified values" is one of the
+   five criteria in the biomechanical reasoning score.
+5. **Adversarial QA probes in the tuning set**, built specifically so stress contradicts the
+   diameter heuristic. Removing them costs 4.3 points of concordance and 1.2 BRS.
+6. **A blinded expert panel:** 5 board-certified physicians across 2 institutions, median 12
+   years post-fellowship, each blind to the other annotators *and* to model predictions, working
+   from a standardized rubric and documenting their rationale; ground truth is majority vote.
+7. **The right control baseline.** "LLaVA-Med + diameter only" scores 78.5%. That comparison —
+   not the comparison against a stress-free model — is what isolates the contribution of regional
+   stress information.
+8. **Reliability of the scoring itself is measured:** BRS test–retest ICC 0.84, inter-scorer ICC
+   0.79 on 40 cases; 3 seeds (42/123/256) with mean ± SD; paired Wilcoxon signed-rank against
+   every baseline.
+
+*Numbers worth quoting:*
+- Stress accuracy: **8.34 kPa MAE / 6.12% relative / R² = 0.961** at 120/80 mmHg;
+  11.07 kPa / 5.89% / R² = 0.953 at 160/100. Best baseline (PI-DeepONet) is 11.53 kPa.
+- Speed: **0.83 s per geometry on one A100 vs. 38.6 min in FEBio on 8 CPU cores (2,790×)**; full
+  pipeline including LLM inference <3 s.
+- Concordance ladder: ESC rules 72.0% → GPT-4V without stress 74.5% → LLaVA-Med 76.0% →
+  LLaVA-Med + diameter only 78.5% → w/o MechTokens 77.3% → w/o adversarial QA 83.1% →
+  **full model 87.4%**. BRS 8.3 vs. 3.7 for GPT-4V.
+- **Encoding ablation (the most transferable result):** zone-resolved 42-dim = 87.4%, 256 raw
+  nodal samples = 84.1%, global-stats-only = 80.2%. Structured summary beats raw volume. Zone
+  summaries retain **94.1%** of per-node stress variance; a single global mean retains 61.3%.
+- PINN ablations, ΔMAE: −HGO +5.33 kPa, −spherical-harmonic conditioning +4.55, −supervised data
+  +3.18, and −HGO −data jointly **+13.00**, which is superadditive — the authors read this as
+  physics being a structural prior rather than a regularizer. Skip connections were not
+  significant (p = 0.063).
+- Per-zone error: best at greater curvature (4.83%), worst at the sinotubular junction (8.42%),
+  because a meshless method cannot do the local refinement FEA uses at stress concentrations.
+- Robustness: 7.41% relative error at 200/120 mmHg (outside the training range); 9.83% ± 1.1% on
+  30 out-of-distribution bicuspid-valve morphologies.
+- Code, weights, geometry generator and MechToken encoders: doi.org/10.48804/41RAQA.
+
+*Takeaways:*
+- **The MechToken is structurally the same move as this project's briefing layer.** Different
+  organ, different simulator, same wall: an LLM cannot reason over ~10⁴ nodal values, so both
+  build a fixed-length structured summary and reason over that instead. This is the closest
+  published prior art for `summary/briefing.py`, and it is a citable justification for a design
+  decision currently defended only by common sense.
+- **Their encoding ablation is the experiment this project has not run.** Vary what the summary
+  contains, hold everything else fixed, measure downstream quality. That is exactly the shape of
+  the "turn the demo into a measurement" work tracked in `llm_insights/TASKS.md`, and their
+  result — structured statistics beat raw samples — is a useful prior that the effort belongs in
+  the summary layer rather than in feeding the model more data.
+- **Our verification loop is the stronger one, and that is the differentiator.** Their downstream
+  metric is agreement with 5 annotators on fictional vignettes; ours is executable falsification
+  with no model judging any outcome. Their nearest equivalent to `tests/test_summary.py` is the
+  94.1%-variance-retention figure, which is a weaker check than answering 22 questions twice and
+  requiring agreement. Worth saying out loud when presenting.
+- **They chose 8 anatomical zones by convention and never swept the zone count** — an admitted
+  limitation. We made the same kind of arbitrary choice with 25 arc-length points, and neither
+  project has justified it. A zone/resolution sweep is cheap and would be a real result.
+- Directionally this is the *other* half of the lab's interest: they go forward (surrogate
+  predicts, LLM explains), while this project goes backward (simulation already ran, LLM proposes
+  and a harness falsifies). Not competing work. See also §4, which collects the lab's other
+  surrogate-modeling material.
+
+*Limitations to state if citing it:*
+- Entirely synthetic. No real patients, no real CTA, no outcomes — and the 200 vignettes were
+  authored by the same team that built the model.
+- Fleiss κ = 0.71 among the experts is a noise ceiling on the labels; 87.4% agreement with a
+  majority vote of moderately-agreeing annotators is a softer number than it reads. The authors
+  also flag that some subgroup counts in Table S4 are tiny (2 of 25) and are "indicator numbers
+  only."
+- Matching FEA is computational fidelity, not clinical validity — the authors say so twice. FEA
+  itself is not validated against in vivo wall stress.
+- Their most useful honest note: the PINN's own 6.12% error is *smaller* than the 10–15%
+  uncertainty in wall-thickness estimation, so the surrogate is not the bottleneck in the error
+  budget. Good template for how to frame our own error sources.
+- Static CTA geometry, no pulsatile/4-D flow loading. Population-level rather than
+  patient-specific material parameters. Speed comparison is GPU vs. 8 CPU cores and excludes 47 h
+  of training and all segmentation effort. Vicuna-7B/LLaVA-Med-v1.5 is a dated backbone by late
+  2026, which the authors list as future work.
 
 ---
 
@@ -171,6 +326,12 @@ Validated against ex vivo AV cushion perfusion culture (24hr, 70 mL/min steady f
 
 Surrogate modeling, ML, and growth-prediction methods from adjacent lab work — useful for
 technique, not for AV-cushion biology directly.
+
+**Also relevant here:** the PINN half of
+[`PINNs and LLMs for Aortic Aneurysm Modeling.pdf`](#pinns-and-llms-for-aortic-aneurysm-modelingpdf)
+(filed in §1 because its LLM half matters more to this project) is a physics-constrained
+surrogate that replaces a 38.6-minute FEA solve with a 0.83-second forward pass. Read it
+alongside the three surrogate papers below if the FSG solver ever becomes the bottleneck.
 
 ### [`Computational Projects June 2026.pptx`](resources_for_ethan/Computational%20Projects%20June%202026.pptx)
 **Potential Computational Projects – Butcher Lab (June 2026)** — 19 slides, appears to be a

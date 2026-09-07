@@ -9,7 +9,9 @@ Rules for any agent doing work in this folder. Read this before writing code.
    invalidates every result. Import from it, read its outputs, wrap it — never edit it, never
    "fix" it, never reformat it, never lint it. If something in there genuinely appears to be a
    bug, do not patch it: write it up under **Open questions** in `TASKS.md` and leave it alone.
-   The same goes for `../RESOURCES.md` and `../resources_for_ethan/`.
+   The same goes for `../resources_for_ethan/`. **`../RESOURCES.md` is different:** it is our
+   own index, and appending an entry when a new resource arrives is what it is for. Never
+   rewrite or reorganize entries that already exist there.
 
 2. **Follow `STYLE_GUIDE.md`.** Full type annotations, Google-style docstrings with
    Args/Returns/Raises, loguru with the lazy brace form (never f-strings in log calls), ruff as
@@ -40,6 +42,10 @@ Rules for any agent doing work in this folder. Read this before writing code.
 
 - `../RESOURCES.md` section 6 is a source-level walkthrough of the entire FSG model. Read it
   before opening the model's `.py` files.
+- `../RESOURCES.md` §1 covers the closest published prior art for this package, including Zhu et
+  al. 2026 (BioPINN-LM), whose 42-dim "MechToken" solves the same compress-a-simulation-for-an-LLM
+  problem as `summary/briefing.py`. Read that entry before designing any experiment on the
+  briefing's contents — their encoding ablation already tested several variants.
 - `../one_way_fsg_model/README.txt` is the canonical reference for field/column layouts.
 - Only `run_fsg.py` needs FEniCS/gmsh. Everything downstream (export, GRN, plotting) runs on
   plain numpy/scipy/h5py/matplotlib/pandas.
