@@ -1,0 +1,33 @@
+# The image must stay small and the build context must never carry the dataset.
+#
+# The FSG output is ~2.1 GB behind Git LFS and is *mounted*, never baked. It already
+# sits outside this build context (the context is `llm_insights/`, the dataset is its
+# sibling `one_way_fsg_model/`), so it cannot be copied in even by accident. The lines
+# below cover the things that are inside the context and should not travel.
+
+# Virtualenvs. The image builds its own; a host venv holds macOS wheels that would not
+# run on linux anyway, and .venv/ alone is several hundred MB of build context.
+.venv/
+venv/
+env/
+
+# Caches and build artifacts.
+__pycache__/
+*.py[cod]
+*.so
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+build/
+dist/
+.DS_Store
+
+# Generated output: reports, cards, briefings, scratch runs, precomputed surfaces.
+# One file is deliberately kept -- the recorded transcript the `smoke` entrypoint
+# replays, which is what lets the container prove itself with no model and no network.
+data/
+!data/demo_transcript.json
+
+# Working notes. They change constantly and would bust the layer cache for nothing.
+TASKS/
