@@ -4,6 +4,9 @@
 data/*.npz
 data/*.h5
 
+# Exploration run output (TASK-015). Regenerate with `python -m llm_insights.agent.explore`.
+data/explore*/
+
 __pycache__/
 *.py[cod]
 .venv/

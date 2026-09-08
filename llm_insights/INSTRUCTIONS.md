@@ -185,6 +185,52 @@ or written into the report — there are tests asserting all four.
 
 ---
 
+## 5b. Let it pick the questions (`agent.explore`)
+
+Everything above starts from a question you typed. This one does not: it proposes its own
+questions from the schema, tests them through the same `Study.ask` path, and reports the survival
+rate **split by whether the answer was already printed in the briefing.** That split is the point
+of the mode, so read it before reading anything else in the report.
+
+```bash
+cd llm_insights
+source .venv/bin/activate
+
+# replay the recorded demo, then let it propose the next question itself
+PYTHONPATH=src python3 -m llm_insights.agent.explore \
+  --generator transcript --transcript data/demo_transcript.json \
+  --question "What differs between the healthy and overflow cases, and why?" \
+  --max-questions 3 --out data/explore_demo
+
+# fully offline, no model at all: the schema enumerator writes the questions
+PYTHONPATH=src python3 -m llm_insights.agent.explore --generator echo \
+  --max-questions 8 --plateau 2 --out data/explore_echo
+```
+
+It writes `exploration_report.md`, `coverage.json`, `stratified_survival.json`, `ranking.json`
+and `exploration.json` into `--out`, plus one `qNN/` subdirectory per question holding that
+question's own cards and report.
+
+**Three classes, decided by string and numeric matching against the briefing — never by a model:**
+
+| class | means | example |
+|---|---|---|
+| `LOOKUP` | the answer is printed in the briefing the model was handed | any `compare_metric` or `metric_ordering` over a row of the scalar table |
+| `DERIVED` | one arithmetic step from printed numbers | `profile_monotonic` over a printed 25-point profile |
+| `COMPUTED` | the test had to touch arrays the briefing does not contain | every `correlation`; any `fraction_above` at a threshold nothing prints |
+
+**Nothing here lets a model decide when to stop.** The run halts on `--max-questions`,
+`--max-calls`, `--max-cost`, or a coverage plateau (`--plateau` consecutive questions that open no
+new (target x case x test) cell). The ceilings are copied into locals before the first model call
+and the backend is wrapped in a call counter it cannot see, so no proposal can raise one.
+
+**What the demo replay actually measures**, and it is not flattering: 6 of its 7 claims are
+`LOOKUP`, the one `COMPUTED` claim could not run, and **100% of the surviving claims are
+`LOOKUP`**. The system is currently very good at re-reading its own briefing. Fixing that is what
+`--skip-class LOOKUP` and TASK-018's designed experiments are for.
+
+---
+
 ## 6. Run the tests
 
 ```bash
