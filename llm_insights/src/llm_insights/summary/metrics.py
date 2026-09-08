@@ -25,7 +25,7 @@ from typing import Final
 
 import numpy as np
 
-from llm_insights.io.dataset import MECH_MAX_PA, Dataset
+from llm_insights.io.dataset import Dataset
 
 LOG = logging.getLogger(__name__)
 
@@ -59,27 +59,54 @@ class MetricDef:
 
 _REGISTRY: dict[str, MetricDef] = {}
 
+#: The metric registry, name -> :class:`MetricDef`. **This is the extension point:** a
+#: module outside this one adds a metric by calling :func:`register_metric`, never by
+#: editing this file. It is the same object as :data:`METRICS`, which is the older name
+#: and is kept because the briefing and the tests already use it.
+METRIC_REGISTRY: Final[dict[str, MetricDef]] = _REGISTRY
 
-def _register(name: str, units: str, description: str, source: str) -> Callable:
+#: Every registered metric name, sorted. **Rebound by :func:`register_metric`**, so a
+#: metric registered by another module after this one is imported still appears here.
+#: That is what lets a new metric reach the generator's allowed-value list and the
+#: harness's admissibility check without either of them being edited: both import this
+#: name lazily, at call time. New code should prefer ``sorted(METRIC_REGISTRY)``, which
+#: cannot go stale at all.
+METRIC_NAMES: tuple[str, ...] = ()
+
+
+def register_metric(name: str, units: str, description: str, source: str) -> Callable:
     """Return a decorator registering a metric function under ``name``.
 
     Args:
-        name: Registry key.
-        units: Physical units string.
-        description: One-line meaning.
-        source: Provenance string.
+        name: Registry key. It is used verbatim in hypothesis specs, so it is part of
+            the model-facing vocabulary.
+        units: Physical units string, or ``"dimensionless"``. Required: a number
+            without units is not defensible in a meeting.
+        description: One-line meaning, readable by a biologist.
+        source: Provenance string naming the artifact and the computation.
 
     Returns:
         A decorator that registers the wrapped function and returns it unchanged.
+
+    Raises:
+        RuntimeError: If ``name`` is already registered. Overwriting would silently
+            change what an already-written hypothesis is tested against.
     """
 
     def wrap(fn: Callable[[Dataset, str], float]) -> Callable[[Dataset, str], float]:
+        global METRIC_NAMES
         if name in _REGISTRY:
             raise RuntimeError(f"metric {name!r} registered twice")
         _REGISTRY[name] = MetricDef(name, units, description, source, fn)
+        METRIC_NAMES = tuple(sorted(_REGISTRY))
         return fn
 
     return wrap
+
+
+#: The name the sixteen definitions below were written against, kept so that making the
+#: registry public stayed a rename and nothing else.
+_register = register_metric
 
 
 def _surface_arc(ds: Dataset, case: str, values_attr: str) -> tuple[np.ndarray, np.ndarray]:
@@ -297,8 +324,12 @@ def _endmt_sd(ds: Dataset, case: str) -> float:
 
 # --- Public surface --------------------------------------------------------------
 
+#: The registry under its original name. Same object as :data:`METRIC_REGISTRY`.
 METRICS: Final[dict[str, MetricDef]] = _REGISTRY
-METRIC_NAMES: Final[tuple[str, ...]] = tuple(sorted(_REGISTRY))
+
+# :data:`METRIC_NAMES` is declared and maintained beside :func:`register_metric`, above.
+# It is not re-derived here: doing so would freeze it at import time again and undo the
+# extension point.
 
 
 def metric_value(ds: Dataset, name: str, case: str) -> float:
@@ -317,7 +348,7 @@ def metric_value(ds: Dataset, name: str, case: str) -> float:
     """
     if name not in _REGISTRY:
         raise ValueError(
-            f"unknown metric {name!r}; registered metrics are {', '.join(METRIC_NAMES)}"
+            f"unknown metric {name!r}; registered metrics are {', '.join(sorted(METRIC_REGISTRY))}"
         )
     resolved = ds.resolve_case(case)
     value = float(_REGISTRY[name].fn(ds, resolved))
@@ -336,5 +367,5 @@ def metric_table(ds: Dataset) -> dict[str, dict[str, float]]:
     """
     return {
         name: {case: metric_value(ds, name, case) for case in ds.cases()}
-        for name in METRIC_NAMES
+        for name in sorted(METRIC_REGISTRY)
     }

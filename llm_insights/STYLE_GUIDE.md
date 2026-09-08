@@ -218,3 +218,63 @@ class Calculator:
         logger.trace("calculator: reset_total done.")
         return self.total
 ```
+
+### Extension points: add a file, do not edit a shared one
+
+Two registries exist so that adding capability is adding a **new file**. Both are
+iterated in **sorted** order, never in import order — output that depended on which
+module happened to be imported first would make the answer-preservation suites flaky
+for reasons that have nothing to do with the data.
+
+#### Briefing sections — `summary/registry.py`
+
+`summary/briefing.py` builds the header, iterates the registry and joins. It is not
+edited again. A new section is a new module under `summary/sections/`, imported by
+`summary/sections/__init__.py` so that registration happens on package import. Every
+section takes the same two arguments whether or not it wants them, so adding one never
+means changing the composer.
+
+```python
+from typing import Any
+
+from llm_insights.summary.registry import briefing_section
+
+
+@briefing_section(order=60, name="grn")
+def grn_section(ds: Any, n_profile_points: int) -> list[str]:
+    """Render the gene-network section."""
+    del n_profile_points
+    return ["## 6. The gene network", "", "..."]
+```
+
+`order` is the sort key, low first; the five original sections use 10, 20, 30, 40, 50,
+so there is room to interleave without renumbering. `name` is the registry key and must
+be unique — a duplicate **raises**, because a silently replaced section is one that
+disappears from every briefing with nothing to notice it.
+
+#### Metrics — `summary/metrics.py`
+
+A metric is one number per case and must declare units and provenance; a number without
+either is not defensible in a meeting. Another module adds one with `register_metric`
+rather than by editing `metrics.py`:
+
+```python
+from llm_insights.summary.metrics import register_metric
+
+
+@register_metric(
+    "endmt_gradient",
+    "dimensionless",
+    "Ventricular-minus-atrial mean EndMT activity, over the overall mean.",
+    "halves split at s=0.5 of EndMT_combined in results_spatial.csv (80% grid)",
+)
+def _endmt_gradient(ds: Dataset, case: str) -> float:
+    ...
+```
+
+Registering rebinds `METRIC_NAMES`, so a metric added after `metrics.py` is imported
+still reaches the generator's allowed-value list and the harness's admissibility check
+without either of them being edited — both import that name lazily, at call time. New
+code should read `sorted(METRIC_REGISTRY)`, which cannot go stale at all. Registering a
+name twice raises: overwriting would silently change what an already-written hypothesis
+is tested against.
