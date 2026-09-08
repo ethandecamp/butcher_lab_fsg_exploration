@@ -91,3 +91,35 @@ python3 -m pytest tests -q
 
 Lint is ruff and only ruff, configured in `llm_insights/pyproject.toml`; see
 `llm_insights/STYLE_GUIDE.md` for the conventions it enforces.
+
+## Long, unattended runs (overnight sessions expected to hit the context limit)
+
+`.claude/settings.json` is configured for sessions that are expected to run long enough to
+auto-compact (or hit a usage-limit pause) at least once, unattended:
+
+- **`PreCompact` hook** (`.claude/hooks/checkpoint.sh`) commits a `chore: pre-compaction
+  checkpoint` WIP snapshot right before compaction summarizes it away. It iterates **every linked
+  worktree**, not just the main checkout, because parallel lanes run in sibling worktrees
+  (`../lane-a`, `../lane-b`, `../lane-c`) and a hook scoped to `CLAUDE_PROJECT_DIR` would protect
+  nothing where the work actually is. It never blocks compaction and never stages
+  `one_way_fsg_model/`, `resources_for_ethan/`, or `llm_insights/data/` (that last one is
+  regenerable and can reach tens of MB mid-task).
+  These are safety-net commits, not real history — squash or drop them once a task lands its own
+  real commit.
+- **`SessionStart` hook** (`.claude/hooks/resume_brief.py`, matchers `resume` and `compact`)
+  re-injects, per worktree, the branch, recent git log and uncommitted diff, plus the parsed
+  STATUS of every `llm_insights/TASKS/TASK-*.md` and any `### Question for Ethan` logged against
+  them. **Phase 2 status lives in `llm_insights/TASKS/`, not `TASKS.md`** — TASKS.md holds only
+  the closed TASK-000..010 and the Open questions list. Read the relevant task file in full
+  before trusting the summary.
+- **`autoContinueAtUsageLimit`** is on, so a session that hits the account's usage limit mid-run
+  waits and resumes automatically instead of dying.
+
+None of this replaces the existing protocol: work off the task files in `llm_insights/TASKS/`,
+append to a task's Log as you go, and never rely solely on the checkpoint hook remembering
+context for you.
+
+**Deliberately left alone:** `askUserQuestionTimeout` (a user-scope-only setting, so it
+can't live here anyway) defaults to `"never"` — a session that ends up asking a clarifying
+question overnight just pauses and waits, rather than auto-picking whatever option happened to
+be pre-selected. That's the intended behavior here; don't set this key to a duration.

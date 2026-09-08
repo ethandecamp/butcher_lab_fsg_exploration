@@ -1048,3 +1048,10 @@ Questions for Ethan or Dan that are not scoped to a single task. Add, don't dele
   `flow_U0p0360`, so the current tooling sees full-mesh stress at step 14 only. Reading the `.h5`
   directly with h5py would give the full 15-step x 3-case stress evolution and roughly triple the
   hypothesis space. No new simulation runs required.
+
+---
+
+## Phase 2 and later
+
+TASK-011 onward live one-per-file in `TASKS/`. See `TASKS/README.md` for the phase order,
+the lane map, and the file-ownership table that keeps parallel agents from colliding.
