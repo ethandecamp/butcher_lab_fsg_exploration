@@ -26,7 +26,7 @@ import json
 import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -90,7 +90,7 @@ class RunResult:
 
 def _now() -> str:
     """Return the current UTC time as an ISO-8601 string with a ``Z`` suffix."""
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def _digest(text: str) -> str:
@@ -238,6 +238,7 @@ def investigate(
     narrow_failures: bool = True,
     max_narrow_rounds: int = 1,
     min_rel_diff_floor: float = 0.0,
+    seen_ids: set[str] | None = None,
 ) -> RunResult:
     """Run one investigation end to end.
 
@@ -261,6 +262,13 @@ def investigate(
             may pass on, imposed by the operator. It is a floor, not an override: see
             :func:`apply_min_rel_diff_floor`. The default of 0.0 changes nothing, so a
             run that does not ask for a floor behaves exactly as it did before.
+        seen_ids: Hypothesis ids already spent, which this run must not reuse. Passed
+            by :class:`llm_insights.api.Study` so that a second question in the same
+            session cannot hand two different claims the same id, which would make the
+            accumulated cards ambiguous and break the parent/successor links in a
+            report covering both. **The set is mutated**, so the caller sees the ids
+            this run added. The default of None keeps the old behaviour exactly: a
+            fresh set per run, scoped to that run.
 
     Returns:
         The :class:`RunResult`. Its ``meta`` carries:
@@ -281,7 +289,7 @@ def investigate(
         not, and a successor is itself counted as survived or falsified.
     """
     transcript: list[dict] = []
-    seen_ids: set[str] = set()
+    seen_ids = set() if seen_ids is None else seen_ids
     briefing = briefing or ""
     n_proposed = 0
     n_rejected = 0

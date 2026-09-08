@@ -1,5 +1,10 @@
 """Command-line entry point: run one investigation and write the report.
 
+This module is argument parsing, error messages and stdout. The work itself is
+:class:`llm_insights.api.Study`, which is what a caller reaching for Python rather
+than a shell should use; everything below builds one, asks it a single question, and
+prints what it produced.
+
 Usage::
 
     python -m llm_insights.agent.run --generator transcript --transcript data/run.json
@@ -27,42 +32,18 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from llm_insights import preflight
 from llm_insights.agent.generator import (
     GENERATOR_KINDS,
     build_system_prompt,
     build_user_prompt,
     make_generator,
 )
-from llm_insights.agent.loop import investigate, write_transcript
-from llm_insights.agent.synthesis import synthesize, transcript_entry
-from llm_insights.cards.card import cards_from_run, cards_to_json
-from llm_insights.cards.render import write_report
-from llm_insights.io.dataset import Dataset
-from llm_insights import preflight
+from llm_insights.api import DEFAULT_ROOT, Study, open_study
 
 LOG = logging.getLogger(__name__)
 
-
-def _default_root() -> Path:
-    """Locate the FSG results tree, preferring the checkout this package lives in.
-
-    In a normal checkout the model sits at ``<repo>/one_way_fsg_model``, two levels
-    above ``src/llm_insights``. A staged copy is used as a fallback so the tool still
-    runs in sandboxes where only the extracted artifacts are present.
-
-    Returns:
-        The first candidate path that exists, or the in-repo path if none do, so the
-        error message names the location a user would actually expect.
-    """
-    in_repo = Path(__file__).resolve().parents[3].parent / "one_way_fsg_model"
-    staged = Path("/mnt/user-data/uploads/butcher_lab_fsg_exploration/one_way_fsg_model")
-    for candidate in (in_repo, staged):
-        if (candidate / "FSG Results").is_dir():
-            return candidate
-    return in_repo
-
-
-DEFAULT_ROOT: Path = _default_root()
+__all__ = ["DEFAULT_QUESTION", "DEFAULT_ROOT", "build_parser", "main"]
 
 #: The question a run answers when none is given.
 DEFAULT_QUESTION: str = "How does inlet flow rate reshape the AV cushion and its EndMT program?"
@@ -195,16 +176,17 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _load_briefing(ds: Dataset, briefing_file: Path | None) -> str:
-    """Produce the briefing text the generator is given.
+def _load_briefing(study: Study) -> str:
+    """Force the study's briefing, converting a missing summary module into exit 2.
 
-    The summary package is imported here rather than at module scope because it is
-    being written in parallel with this one; importing it lazily means this CLI stays
-    usable, and says exactly what is missing when it is not.
+    :attr:`llm_insights.api.Study.briefing` imports the summary package lazily,
+    because that module was written in parallel with this one. Catching the
+    :class:`ImportError` here keeps the CLI's message and exit status what they were,
+    rather than letting a traceback out.
 
     Args:
-        ds: The dataset to summarise.
-        briefing_file: An explicit briefing to read instead, or None.
+        study: The study whose briefing to build. It is cached, so asking a question
+            afterwards does not rebuild it.
 
     Returns:
         The briefing text.
@@ -213,11 +195,8 @@ def _load_briefing(ds: Dataset, briefing_file: Path | None) -> str:
         SystemExit: With status 2 if neither a briefing file nor the summary module is
             available.
     """
-    if briefing_file is not None:
-        LOG.info("reading briefing from %s", briefing_file)
-        return briefing_file.read_text(encoding="utf-8")
     try:
-        from llm_insights.summary.briefing import build_briefing
+        return study.briefing
     except ImportError as exc:
         print(
             "error: llm_insights.summary.briefing could not be imported, so no briefing "
@@ -226,8 +205,6 @@ def _load_briefing(ds: Dataset, briefing_file: Path | None) -> str:
             file=sys.stderr,
         )
         raise SystemExit(2) from None
-    LOG.info("building briefing from %s", ds.root)
-    return str(build_briefing(ds))
 
 
 def _summarise(meta: dict[str, Any], paths: dict[str, Path]) -> str:
@@ -267,22 +244,23 @@ def _summarise(meta: dict[str, Any], paths: dict[str, Path]) -> str:
     return "\n".join(lines)
 
 
-def _open_dataset(root: Path) -> Dataset:
-    """Open the dataset, exiting with a usable message if it cannot be read.
+def _open_dataset(study: Study) -> None:
+    """Force the study's dataset, exiting with a usable message if it cannot be read.
+
+    The study opens its dataset lazily, so this is called before anything else that
+    could cost money: a bad ``--root`` must fail before a backend is constructed, not
+    part way through a run.
 
     Args:
-        root: The dataset root.
-
-    Returns:
-        The opened dataset.
+        study: The study to open.
 
     Raises:
         SystemExit: With status 2 if the root cannot be opened.
     """
     try:
-        return Dataset(root)
+        _ = study.dataset
     except (FileNotFoundError, OSError) as exc:
-        print(f"error: could not open the dataset at {root}: {exc}", file=sys.stderr)
+        print(f"error: could not open the dataset at {study.root}: {exc}", file=sys.stderr)
         raise SystemExit(2) from None
 
 
@@ -312,28 +290,17 @@ def _warn_on_stale_replay(generator: Any, question: str) -> None:
         )
 
 
-def _close(generator: Any) -> None:
-    """Release a backend's resources if it holds any.
-
-    Args:
-        generator: The generator that has finished, whatever its backend.
-    """
-    close = getattr(generator, "close", None)
-    if callable(close):
-        close()
-
-
-def _dry_run(ds: Dataset, args: argparse.Namespace) -> int:
+def _dry_run(study: Study, args: argparse.Namespace) -> int:
     """Print the prompts a live run would send, and make no model call.
 
     Args:
-        ds: The dataset to summarise.
+        study: The study whose briefing to summarise.
         args: Parsed arguments.
 
     Returns:
         Process exit status 0.
     """
-    briefing = _load_briefing(ds, args.briefing_file)
+    briefing = _load_briefing(study)
     system = build_system_prompt()
     user = build_user_prompt(briefing, args.question, args.n)
     print("=" * 78)
@@ -377,12 +344,13 @@ def main(argv: list[str] | None = None) -> int:
     if not args.skip_preflight and not preflight.report():
         return 2
 
-    ds = _open_dataset(args.root)
+    study = open_study(args.root, briefing_file=args.briefing_file)
+    _open_dataset(study)
     if args.dry_run:
-        return _dry_run(ds, args)
+        return _dry_run(study, args)
 
     try:
-        generator = make_generator(
+        study.generator = make_generator(
             args.generator,
             transcript=args.transcript,
             model=args.model,
@@ -395,21 +363,20 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
-    _warn_on_stale_replay(generator, args.question)
+    _warn_on_stale_replay(study.generator, args.question)
 
-    briefing = _load_briefing(ds, args.briefing_file)
+    _load_briefing(study)
     try:
-        result = investigate(
-            ds,
-            generator,
-            briefing,
+        answer = study.ask(
             args.question,
             n=args.n,
+            out=args.out,
             narrow_failures=not args.no_narrow,
             min_rel_diff_floor=args.min_rel_diff,
+            synthesize_summary=args.synthesize,
         )
     except (RuntimeError, ValueError, OSError) as exc:
-        _close(generator)
+        study.close()
         # The proposal round is the one generator call the loop does not guard, because
         # a run with no claims has nothing to report. Fail with the backend's own
         # message rather than a traceback, and say what to try instead.
@@ -424,43 +391,11 @@ def main(argv: list[str] | None = None) -> int:
             )
         return 2
 
-    cards = cards_from_run(result.hypotheses, result.outcomes)
-
-    # Synthesis runs here, after every verdict is fixed and the cards are frozen, and
-    # it can only add a paragraph to the report. Nothing below re-reads a verdict.
-    narration = None
-    narration_headline = None
-    synthesis_record = None
-    if args.synthesize:
-        outcome = synthesize(generator, result.question, cards)
-        result.meta.update(outcome.provenance())
-        narration = outcome.blurb
-        narration_headline = outcome.headline
-        synthesis_record = transcript_entry(outcome, result.question, len(cards))
-
-    out_dir = Path(args.out)
-    cards_path = out_dir / "cards.json"
-    cards_to_json(cards, cards_path)
-    md_path, html_path = write_report(
-        cards, result.question, result.meta, out_dir, narration, narration_headline
-    )
-    transcript_path = write_transcript(result, out_dir / "transcript.json", synthesis_record)
-
-    print(
-        _summarise(
-            result.meta,
-            {
-                "cards:": cards_path,
-                "markdown:": md_path,
-                "html:": html_path,
-                "transcript:": transcript_path,
-            },
-        )
-    )
-    usage = getattr(generator, "usage_summary", None)
+    print(_summarise(answer.meta, answer.paths))
+    usage = getattr(study.generator, "usage_summary", None)
     if callable(usage):
         print(f"Usage:       {usage()}\n")
-    _close(generator)
+    study.close()
     return 0
 
 

@@ -32,7 +32,7 @@ import logging
 import os
 import urllib.error
 import urllib.request
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Final, Protocol, runtime_checkable
 
@@ -354,6 +354,57 @@ def build_user_prompt(briefing: str, question: str, n: int) -> str:
             "JSON array and nothing else.",
         ]
     )
+
+
+def build_followup_prompt(question: str, prior: Sequence[Mapping[str, Any]]) -> str:
+    """Build the question text for a follow-up, carrying what is already settled.
+
+    This returns a *question*, not a complete user turn, and that is deliberate. Every
+    backend assembles its own user turn by calling :func:`build_user_prompt`, so the
+    only place a wrapper can add session context without reaching inside a backend is
+    the question it is handed. Keeping the injection here means a follow-up works
+    identically on ``claude-cli``, ``anthropic``, ``paste`` and any backend added
+    later, and no backend and no line of the :class:`Generator` protocol had to change
+    to gain the capability.
+
+    The block lists ids, claims and verdicts only. It does not carry observed numbers:
+    the point is to stop the model re-proposing ground that is already settled, not to
+    let it write a claim whose answer it has already been told, which would turn a
+    pre-registered test into a lookup.
+
+    Args:
+        question: The follow-up question, as the user asked it.
+        prior: One mapping per claim already tested in this session, each with ``id``,
+            ``claim`` and ``verdict`` keys. An empty sequence returns the question
+            unchanged, so the first question of a session is never decorated.
+
+    Returns:
+        The question text to pass to a generator's ``propose``.
+    """
+    settled = [dict(item) for item in prior]
+    if not settled:
+        return question
+    lines = [
+        "ALREADY TESTED IN THIS SESSION",
+        "These claims have already been proposed and run against the simulator. Do not "
+        "re-propose them, and do not propose a restatement of one. Build on them.",
+        "",
+    ]
+    for item in settled:
+        lines.append(
+            f"- {item.get('id', '?')} [{item.get('verdict', 'UNKNOWN')}] "
+            f"{str(item.get('claim', '')).strip()}"
+        )
+    lines += [
+        "",
+        "Give every new claim an id that does not appear in the list above. An id that "
+        "is already spent is rejected outright, and the claim is lost with it.",
+        "",
+        "FOLLOW-UP QUESTION",
+        question.strip(),
+    ]
+    LOG.info("follow-up prompt carries %d prior claim(s)", len(settled))
+    return "\n".join(lines)
 
 
 def build_narrow_prompt(
@@ -1061,6 +1112,7 @@ __all__ = [
     "EchoGenerator",
     "Generator",
     "TranscriptGenerator",
+    "build_followup_prompt",
     "build_narrow_prompt",
     "build_system_prompt",
     "build_user_prompt",
