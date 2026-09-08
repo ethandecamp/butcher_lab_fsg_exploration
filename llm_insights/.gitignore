@@ -12,3 +12,7 @@ venv/
 .ruff_cache/
 *.egg-info/
 .DS_Store
+
+# TASK-013's full 24-node GRN re-run: ~12 MB per case, regenerated in ~30 min by
+# `python3 -m llm_insights.grn.runner --out data/grn_full`. Derived output, not history.
+data/grn_full/

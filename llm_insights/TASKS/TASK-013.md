@@ -1,6 +1,6 @@
 # TASK-013 — Re-run the GRN and keep all 24 nodes
 
-**STATUS:** TODO
+**STATUS:** IN PROGRESS — Lane B (Claude Opus 5, overnight session)
 **Phase:** 1, Lane B (first). Branch `feat/lane-b-grn`.
 **Depends on:** Phase 0 merged. **Blocks:** TASK-014, TASK-018.
 
