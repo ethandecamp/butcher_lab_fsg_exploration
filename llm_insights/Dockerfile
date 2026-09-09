@@ -83,8 +83,24 @@ RUN printf '%s\n' \
     '      echo "error: no FSG dataset at $ROOT" >&2' \
     '      echo "  mount it read-only, e.g.:" >&2' \
     '      echo "    -v /path/to/one_way_fsg_model:/data/one_way_fsg_model:ro" >&2' \
-    '      echo "  see INSTRUCTIONS_DOCKER.md step 5." >&2' \
+    '      echo "  see INSTRUCTIONS_DOCKER.md step 6." >&2' \
     '      exit 2' \
+    '    fi' \
+    '' \
+    '# A clone made without the Git LFS add-on has the whole directory tree and all' \
+    '# the right filenames -- it is only the *contents* that are 132-byte pointer' \
+    '# stubs. The directory check above passes happily on it, and the run then dies' \
+    '# ~200 lines deep in numpy with "This file contains pickled (object) data",' \
+    '# which tells the reader nothing. Catch it here instead, and name the fix.' \
+    '    probe=$(find "$ROOT/FSG Results" -name "*.h5" 2>/dev/null | head -n 1)' \
+    '    if [ -n "$probe" ] && head -c 64 "$probe" 2>/dev/null | grep -qF git-lfs.github.com; then' \
+    '      echo "error: the dataset at $ROOT is Git LFS pointer files, not the real data" >&2' \
+    '      echo "  $probe is $(wc -c < "$probe") bytes; it should be megabytes." >&2' \
+    '      echo "  Run these in the repository folder you mounted, then try again:" >&2' \
+    '      echo "    git lfs install" >&2' \
+    '      echo "    git lfs pull" >&2' \
+    '      echo "  see INSTRUCTIONS_DOCKER.md step 4." >&2' \
+    '      exit 3' \
     '    fi' \
     '    mkdir -p "$OUT"' \
     '    exec python3 -m llm_insights.agent.run \' \

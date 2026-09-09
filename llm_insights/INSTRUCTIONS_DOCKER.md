@@ -70,7 +70,7 @@ Pick a folder you can find again, and clone into it:
 
 ```bash
 cd ~/Documents
-git clone <REPOSITORY-URL> butcher_lab_fsg_exploration
+git clone https://github.com/ethandecamp/butcher_lab_fsg_exploration.git
 cd butcher_lab_fsg_exploration
 ```
 
@@ -88,21 +88,24 @@ git lfs pull
 
 This downloads roughly 2.1 GB and can take several minutes.
 
-**Check it worked.** This command must print a number in the hundreds of megabytes or
-more:
+**Check it worked.** Do not use the folder's size for this. `one_way_fsg_model`
+also holds several hundred megabytes of ordinary PDFs and images that arrive with any
+clone, so a clone that fetched *none* of the simulation data still measures 981 MB --
+big enough to look right, and wrong. Check one simulation file instead:
 
 ```bash
-du -sh one_way_fsg_model
+ls -l "one_way_fsg_model/FSG Results/flow_U0p0540/step_014/solid_fields.h5"
 ```
 
-**Correct output** looks like:
+**Correct output** shows a size in the millions:
 
 ```
-2.1G	one_way_fsg_model
+-rw-r--r--  1 you  staff  4286796 ... solid_fields.h5
 ```
 
-If it prints something tiny like `1.2M`, the download did not happen and you have
-placeholder files. Go back to step 2.
+If the size is around **132** instead, you have a placeholder, not the data. Run
+`git lfs install`, then `git lfs pull` again. (For reference, the whole folder is
+`2.1G` once the data is really there, and 981M when it is not.)
 
 ---
 
@@ -125,8 +128,15 @@ docker build -t llm-insights:latest .
 
 **The whole test suite runs during this build.** That is on purpose: if any test fails,
 the build fails and no image is produced, so a broken image cannot reach you. You will
-see a line like `440 passed, 27 skipped` go by. The skipped ones are the tests that
-need the simulation data, which is not inside the image — see the next step for why.
+see this line go by:
+
+```
+430 passed, 29 skipped, 1 warning in 7.37s
+```
+
+The 29 skipped ones are the tests that need the simulation data, which is not inside
+the image — see the next step for why. The one warning is pytest noticing a class named
+`TestSpec` that is not a test class; it is harmless.
 
 ### Building for a different kind of computer
 
@@ -242,8 +252,9 @@ exported can never turn a keyless run into a billed one.
 | Symptom | What it means | What to do |
 |---|---|---|
 | `Cannot connect to the Docker daemon` | Docker Desktop is not running. | Open Docker Desktop, wait for *Engine running*, retry. |
-| `error: no FSG dataset at /data/one_way_fsg_model` | The mount is wrong or the data was never downloaded. | Check `du -sh one_way_fsg_model` prints gigabytes (step 4), and that the path before the `:` in `-v` is the real folder. |
-| `du -sh` prints a few megabytes | Git LFS did not fetch the real files. | `git lfs install`, then `git lfs pull` (steps 2 and 4). |
+| `error: no FSG dataset at /data/one_way_fsg_model` | The mount is wrong, or you are pointing at the wrong folder. | Check the path before the `:` in `-v` is the folder that contains `FSG Results`. |
+| `error: the dataset at ... is Git LFS pointer files, not the real data` | The folder and filenames are all there, but the files are 132-byte placeholders. | `git lfs install`, then `git lfs pull` (steps 2 and 4). Then rerun. |
+| `ValueError: This file contains pickled (object) data` | An older image without the pointer check, hitting the same placeholder problem as the row above. | Rebuild the image (step 5), then follow the row above. |
 | The build stops on a red `FAILED` with test output | A test failed, so the image was **not** built. This is the safety net working. | Send the last 40 lines of the build output to Ethan. Do not try to skip the tests. |
 | `docker: invalid reference format` | Usually a space in your folder path, or Windows backslashes on macOS/Linux. | Keep the quotes around the `-v` values exactly as written above. |
 | `permission denied` writing to `/out` | The `out` folder does not exist or is not writable. | `mkdir -p out` in the `llm_insights` folder first. |

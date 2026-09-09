@@ -113,6 +113,17 @@ class DockerfileTests(unittest.TestCase):
         """Smoke fails loudly when the dataset is not mounted."""
         self.assertIn("no FSG dataset at", self.text)
 
+    def test_the_entrypoint_catches_git_lfs_pointer_files(self):
+        """The entrypoint catches git lfs pointer files."""
+        # A clone made without the LFS add-on has every directory and every filename
+        # the real dataset has; only the contents are 132-byte stubs. The directory
+        # check above passes on it, and the run then died ~200 frames deep in numpy
+        # with "This file contains pickled (object) data" -- a message that names
+        # neither Git LFS nor the fix. Measured while verifying TASK-017 criterion 5.
+        self.assertIn("git-lfs.github.com", self.text)
+        self.assertIn("is Git LFS pointer files", self.text)
+        self.assertIn("git lfs pull", self.text)
+
 
 class DockerignoreTests(unittest.TestCase):
     """The build context stays small, and carries the one file smoke needs."""
@@ -178,6 +189,26 @@ class InstructionsTests(unittest.TestCase):
         # a bind mount of the directory it points at. Someone hitting that needs to be
         # told, not left to work it out.
         self.assertIn("symlink", self.text.lower())
+
+    def test_it_gives_a_clone_url_rather_than_a_placeholder(self):
+        """It gives a clone url rather than a placeholder."""
+        # The reader is told to copy each command exactly, and cannot be expected to
+        # know what to put in place of an angle-bracketed placeholder.
+        self.assertNotIn("<REPOSITORY-URL>", self.text)
+        self.assertIn("git clone https://", self.text)
+
+    def test_the_data_check_does_not_rest_on_the_folder_size(self):
+        """The data check does not rest on the folder size."""
+        # one_way_fsg_model also holds several hundred MB of PDFs and images that
+        # arrive with any clone, so a clone that fetched no simulation data at all
+        # still measures 981M. A "hundreds of megabytes or more" threshold passes it.
+        self.assertIn("solid_fields.h5", self.text)
+        self.assertIn("981", self.text)
+
+    def test_the_failure_table_covers_pointer_files(self):
+        """The failure table covers pointer files."""
+        self.assertIn("pointer files", self.text)
+        self.assertIn("pickled (object) data", self.text)
 
 
 if __name__ == "__main__":
