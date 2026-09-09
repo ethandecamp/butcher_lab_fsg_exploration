@@ -177,7 +177,7 @@ def http_json(
         ) from None
     except TimeoutError:
         raise LocalBackendError(
-            f"the local model server at {url} did not respond within {timeout:.0f}s"
+            f"the local model server at {url} did not respond within {timeout:g}s"
         ) from None
     except OSError as exc:
         raise LocalBackendError(f"could not reach the local model server at {url}: {exc}") from None
