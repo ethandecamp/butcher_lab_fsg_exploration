@@ -194,7 +194,10 @@ class TestFollowUpMemory(unittest.TestCase, _FakeDatasetMixin):
         generator: RecordingGenerator = self.study.generator
         first = self.study.ask("what happens?", n=2)
         prior_ids = [card.id for card in first.cards]
-        self.assertEqual(prior_ids, ["H1", "H2"])
+        # The stub numbers its claims H1, H2 on every call, as a real backend does; the
+        # study stamps the question number on so the second question is not lost to a
+        # duplicate-id rejection. See tests/test_explore_ids.py.
+        self.assertEqual(prior_ids, ["q01_H1", "q01_H2"])
 
         self.study.follow_up("why did that happen?", n=2)
         follow_up_prompt = generator.questions[-1]
@@ -217,16 +220,21 @@ class TestFollowUpMemory(unittest.TestCase, _FakeDatasetMixin):
         self.assertEqual(answer.meta["question"], "second")
 
     def test_ids_are_unique_across_two_questions_in_one_study(self) -> None:
-        """A second question cannot reuse a spent id, even reproposing the same one."""
+        """A second question cannot reuse a spent id, and is not thrown away for trying.
+
+        The stub reproposes H1 and H2 on the second question, which is what a real
+        backend does: each proposal call is independent and has no memory of the ids the
+        last one spent. Both claims survive, under ids stamped with the question that
+        asked for them, so the study still holds one card per id and a card still names
+        where it came from.
+        """
         self.study.ask("first", n=2)
         self.study.follow_up("second", n=2)
         ids = [card.id for card in self.study.cards]
         self.assertEqual(len(ids), len(set(ids)), f"duplicate ids: {ids}")
-        # The stub reproposed H1 and H2. Both were rejected as duplicates and counted
-        # as such, rather than silently overwriting the first question's cards.
-        self.assertEqual(len(ids), 2)
-        self.assertEqual(self.study.history[1].meta["n_rejected"], 2)
-        self.assertEqual(self.study.history[1].meta["n_admissible"], 0)
+        self.assertEqual(ids, ["q01_H1", "q01_H2", "q02_H1", "q02_H2"])
+        self.assertEqual(self.study.history[1].meta["n_rejected"], 0)
+        self.assertEqual(self.study.history[1].meta["n_admissible"], 2)
 
     def test_history_and_cards_accumulate(self) -> None:
         """Both accessors report what the study has done so far."""

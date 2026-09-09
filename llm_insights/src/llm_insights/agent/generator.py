@@ -67,15 +67,31 @@ _INLINE_CHOICES: Final[dict[str, tuple[str, ...]]] = {
     "method": ("pearson", "spearman"),
 }
 
+#: Vocabularies too large to spell in a ``_check_choice`` call, and the name the
+#: VOCABULARIES block gives each. The resolver beside it reads the *same* object the
+#: validator consults, so a name the prompt offers and a name the code accepts cannot
+#: drift apart: there is no second copy to fall out of date.
+_NAMED_VOCABULARIES: Final[dict[tuple[str, str], str]] = {
+    ("compare_metric", "metric"): "METRICS",
+    ("metric_ordering", "metric"): "METRICS",
+    ("correlation", "field_x"): "GRN FIELDS",
+    ("correlation", "field_y"): "GRN FIELDS",
+    ("compare_metric", "case_a"): "CASES",
+    ("compare_metric", "case_b"): "CASES",
+    ("correlation", "case"): "CASES",
+    ("peak_location", "case"): "CASES",
+    ("fraction_above", "case"): "CASES",
+    ("profile_monotonic", "case"): "CASES",
+}
+
+#: Above what size a vocabulary is quoted once in the VOCABULARIES block and referred to
+#: by name from the primitive's parameter line, rather than repeated inline.
+_INLINE_VOCABULARY_MAX: Final[int] = 8
+
 #: One-line human description of parameters whose vocabulary is open-ended.
 _PARAM_NOTES: Final[dict[str, str]] = {
-    "case": "a case folder name or condition label",
-    "case_a": "a case folder name or condition label",
-    "case_b": "a case folder name or condition label",
-    "cases": "a list of two or more distinct case names, in the asserted order",
-    "metric": "a metric name from the metric registry",
-    "field_x": "a GRN table column",
-    "field_y": "a GRN table column",
+    "cases": "a list of two or more distinct case names, in the asserted order, each "
+    "from the CASES vocabulary below",
     "s_min": "lower edge of the arc window, 0 = atrial end, 1 = ventricular end",
     "s_max": "upper edge of the arc window, 0 = atrial end, 1 = ventricular end",
     "step": "growth step 0-14",
@@ -158,6 +174,9 @@ def _allowed_values(primitive: str, param: str) -> tuple[str, ...] | None:
     if param == "op":
         ops = getattr(_primitives, "_OPS", None)
         return tuple(sorted(ops)) if ops else None
+    vocabulary = _NAMED_VOCABULARIES.get((primitive, param))
+    if vocabulary is not None:
+        return _resolve_vocabulary(vocabulary)
     source = _CHOICE_SOURCES.get((primitive, param))
     if source is not None:
         values = getattr(_primitives, source, None)
@@ -179,7 +198,20 @@ def _metric_names() -> tuple[str, ...]:
 
     The registry (``llm_insights.summary.metrics``) is written in parallel with this
     module. When it is missing the prompt says so rather than inventing metric names.
+
+    ``llm_insights.summary.sections`` is imported first, and that import is the point of
+    this function rather than an accident of it. Metrics register as an import side
+    effect of the section that owns them -- the eight GRN metrics live in
+    ``summary.sections.grn`` -- and ``METRIC_NAMES`` is *rebound* by ``register_metric``.
+    A process that has not built a briefing therefore used to see 16 of the 24 registered
+    metrics, and offered a model a vocabulary short by exactly the GRN half. Importing the
+    section package is what the briefing itself does to populate the registry, so this
+    reads the same source rather than a second list that could drift.
     """
+    try:
+        import llm_insights.summary.sections  # noqa: F401 - imported for registration
+    except ImportError:  # a partial install still gets whatever did register
+        LOG.warning("briefing sections unavailable; the metric vocabulary may be short")
     try:
         from llm_insights.summary.metrics import METRIC_NAMES
     except ImportError:
@@ -202,6 +234,221 @@ def _case_names() -> tuple[str, ...]:
     from llm_insights.io.dataset import CASE_BY_CONDITION, CONDITION_BY_CASE
 
     return tuple(sorted(CONDITION_BY_CASE)) + tuple(sorted(CASE_BY_CONDITION))
+
+
+def _resolve_vocabulary(vocabulary: str) -> tuple[str, ...]:
+    """Resolve one named vocabulary to the names the validator will accept.
+
+    Args:
+        vocabulary: ``"METRICS"``, ``"GRN FIELDS"`` or ``"CASES"``.
+
+    Returns:
+        The names, sorted the way the underlying source sorts them. An empty tuple
+        means the source could not be loaded, and the prompt says so rather than
+        inventing names.
+
+    Raises:
+        KeyError: If ``vocabulary`` is not one this module knows how to resolve.
+    """
+    resolvers = {
+        "METRICS": _metric_names,
+        "GRN FIELDS": _grn_columns,
+        "CASES": _case_names,
+    }
+    return resolvers[vocabulary]()
+
+
+def primitive_vocabularies() -> dict[tuple[str, str], tuple[str, ...]]:
+    """Return every fixed vocabulary the prompt offers, keyed by primitive and parameter.
+
+    This is the single place the prompt and its tests both read, and it resolves each
+    list from the object the harness's own validator consults. That is the whole point:
+    the vocabulary quoted to a model is a *claim about the validator*, and a claim needs
+    somewhere to be falsified from. ``tests/test_prompt_vocabulary.py`` checks it in
+    both directions -- every offered name accepted, every accepted name offered --
+    reading the accepted set out of the primitives' own rejection messages.
+
+    Returns:
+        ``{(primitive, parameter): names}`` for every parameter with a fixed
+        vocabulary. A parameter whose vocabulary could not be resolved is omitted
+        rather than offered empty.
+    """
+    offered: dict[tuple[str, str], tuple[str, ...]] = {}
+    for name in sorted(PRIMITIVES):
+        signature = inspect.signature(PRIMITIVES[name])
+        for param in signature.parameters:
+            if param == "ds":
+                continue
+            allowed = _allowed_values(name, param)
+            if allowed:
+                offered[(name, param)] = tuple(allowed)
+    return offered
+
+
+def invalid_name_examples() -> dict[tuple[str, str], tuple[str, ...]]:
+    """Return the names the prompt explicitly warns a parameter will reject.
+
+    Listing what a parameter accepts turned out not to be enough on its own. In the live
+    run of 2026-09-09 eight of the ten claims that could not run handed ``correlation`` a
+    name from a neighbouring register -- the bare node name ``YAP_TAZ`` five times and the
+    metric ``yap_taz_mean_combined`` three times -- with all nineteen valid GRN fields
+    listed under that very parameter two lines away. Naming the near miss is what turns a
+    list into a rule.
+
+    Every example is *derived*: the node stems come from splitting the activity names on
+    the scenario suffixes the loader itself uses, and the metric examples are the GRN
+    metrics already in the METRICS vocabulary. Nothing is written down twice, and
+    ``tests/test_prompt_vocabulary.py`` checks that each name really is rejected -- a
+    warning the code would happily accept is worse than no warning at all.
+
+    Returns:
+        ``{(primitive, parameter): names}``, empty when no near miss can be derived.
+    """
+    from llm_insights.io.dataset import GRN_SCENARIOS
+
+    grn_fields = _grn_columns()
+    metrics = _metric_names()
+    if not grn_fields:
+        return {}
+
+    stems = sorted(
+        {
+            name[: -(len(scenario) + 1)]
+            for name in grn_fields
+            for scenario in GRN_SCENARIOS
+            if name.endswith(f"_{scenario}")
+        }
+    )
+    # A metric that reads like GRN state is the other half of the trap: it names a node,
+    # so it looks like a column, and correlation has never heard of it.
+    grn_metrics = [
+        name
+        for name in metrics
+        if name.endswith(("_mean_combined", "_sd_combined")) and name not in grn_fields
+    ]
+    warned = tuple(stems) + tuple(grn_metrics)
+    if not warned:
+        return {}
+    return {("correlation", "field_x"): warned, ("correlation", "field_y"): warned}
+
+
+def _vocabulary_block() -> list[str]:
+    """Render the VOCABULARIES section: every fixed name list, with its owner named.
+
+    Three registers of the same quantities exist -- a metric name, a GRN table column,
+    and an arc-resolved profile field -- and a live run on 2026-09-09 lost four of five
+    hypotheses in one question to the model guessing across them. The old prompt listed
+    metrics and GRN columns as two flat lists with no owner, which is what made guessing
+    the only available move. Each list here is attributed to the exact
+    ``primitive.parameter`` that accepts it, and parameters sharing a list are grouped so
+    the model can see that they do.
+
+    Returns:
+        The prompt lines.
+    """
+    offered = primitive_vocabularies()
+    grouped: dict[tuple[str, ...], list[str]] = {}
+    for (primitive, param), names in sorted(offered.items()):
+        grouped.setdefault(names, []).append(f"{primitive}.{param}")
+
+    lines = [
+        "VOCABULARIES",
+        "Each list below belongs to the parameters named beside it and to no others. "
+        "A name borrowed from another list is a hard error, not a near miss.",
+    ]
+    for names, owners in sorted(grouped.items(), key=lambda item: item[1]):
+        label = _NAMED_VOCABULARIES.get(tuple(owners[0].split(".", 1)))
+        title = f"  {', '.join(owners)}"
+        if label:
+            title += f" -- {label}, {len(names)} names"
+        lines.append(title + ":")
+        lines.append("    " + json.dumps(list(names)))
+    lines.extend(_naming_trap(offered))
+    return lines
+
+
+def _naming_trap(offered: dict[tuple[str, str], tuple[str, ...]]) -> list[str]:
+    """Spell out, per quantity, the three registers it is spelled in.
+
+    Every row is computed from ``offered``, so this cannot name a spelling that is not
+    actually on offer: a quantity that stops appearing in one register drops out of the
+    row rather than becoming a lie in the prompt.
+
+    Args:
+        offered: The output of :func:`primitive_vocabularies`.
+
+    Returns:
+        The prompt lines, or an empty list when no quantity spans two vocabularies.
+    """
+    metrics = offered.get(("compare_metric", "metric"), ())
+    grn_fields = offered.get(("correlation", "field_x"), ())
+    # Every short field name in play, not just profile_monotonic's: peak_location and
+    # fraction_above have their own sets, and mech_norm is a fraction_above field *and*
+    # a GRN column, which is precisely the kind of overlap this note exists to flag.
+    short_fields = sorted(
+        {
+            name
+            for (primitive, param), names in offered.items()
+            if param == "field"
+            for name in names
+        }
+    )
+
+    rows: list[str] = []
+    for stem in short_fields:
+        as_metric = [name for name in metrics if name.startswith(f"{stem}_")]
+        as_grn = [name for name in grn_fields if name.startswith(f"{stem}_")]
+        if not as_metric and not as_grn:
+            continue
+        parts = [f"{json.dumps(stem)} as a profile/peak/fraction field"]
+        if as_grn:
+            parts.append(f"{', '.join(json.dumps(n) for n in as_grn)} as a GRN field")
+        if as_metric:
+            parts.append(f"{', '.join(json.dumps(n) for n in as_metric)} as a metric")
+        rows.append(f"  - {stem}: " + "; ".join(parts))
+    if not rows:
+        return []
+
+    node_metrics = [name for name in metrics if name.endswith(("_mean_combined", "_sd_combined"))]
+    trailer = [
+        "  A GRN node activity such as "
+        + json.dumps(grn_fields[-1] if grn_fields else "Snai1_combined")
+        + " is a GRN field and nothing else: it is not a metric and not a profile field, "
+        "so it can only be reached through correlation."
+    ]
+    if node_metrics:
+        trailer.append(
+            "  The only GRN state compare_metric and metric_ordering can reach is these "
+            + str(len(node_metrics))
+            + " metrics: "
+            + json.dumps(node_metrics)
+            + "."
+        )
+    trailer.extend(_near_miss_rows())
+    return ["", "  THE SAME QUANTITY IS SPELLED DIFFERENTLY IN EACH LIST:", *rows, *trailer]
+
+
+def _near_miss_rows() -> list[str]:
+    """Render the named traps: the plausible spellings a parameter will refuse.
+
+    Returns:
+        Prompt lines, or an empty list when no near miss can be derived.
+    """
+    examples = invalid_name_examples()
+    lines: list[str] = []
+    for (primitive, param), names in sorted(examples.items()):
+        if param != "field_x":  # field_x and field_y share a list; say it once
+            continue
+        lines.append(
+            f"  REJECTED BY {primitive}.field_x and {primitive}.field_y, however "
+            "reasonable they look: " + json.dumps(list(names)) + "."
+        )
+        lines.append(
+            "  A node name on its own is not a column. Every activity carries a scenario, "
+            "so write the full name from the GRN FIELDS list above and never the node "
+            "alone."
+        )
+    return lines
 
 
 def _describe_primitive(name: str, fn: Any) -> list[str]:
@@ -236,7 +483,16 @@ def _describe_primitive(name: str, fn: Any) -> list[str]:
         bits = [_annotation_name(spec.annotation)]
         bits.append("required" if required else f"optional, default {spec.default!r}")
         allowed = _allowed_values(name, param)
-        if allowed is not None:
+        label = _NAMED_VOCABULARIES.get((name, param))
+        if allowed and len(allowed) > _INLINE_VOCABULARY_MAX:
+            # Quoting 24 metric names under four separate parameters would trade real
+            # prompt budget for no new information. The block below carries them once,
+            # attributed to this exact parameter.
+            bits.append(
+                f"one of the {len(allowed)} names listed under "
+                f"{label or 'VOCABULARIES'} for {name}.{param} below"
+            )
+        elif allowed is not None:
             bits.append("one of " + json.dumps(list(allowed)))
         elif param in _PARAM_NOTES:
             bits.append(_PARAM_NOTES[param])
@@ -258,13 +514,12 @@ def build_system_prompt() -> str:
     Returns:
         The complete system prompt.
     """
-    metrics = _metric_names()
-    metric_line = (
-        "  metric names currently registered: " + json.dumps(list(metrics))
-        if metrics
-        else "  the metric registry is not loaded in this environment, so avoid "
-        "compare_metric and metric_ordering unless the briefing names a metric"
-    )
+    vocabularies = _vocabulary_block()
+    if not _metric_names():
+        vocabularies.append(
+            "  the metric registry is not loaded in this environment, so avoid "
+            "compare_metric and metric_ordering unless the briefing names a metric"
+        )
 
     catalogue: list[str] = []
     for name in sorted(PRIMITIVES):
@@ -318,10 +573,9 @@ def build_system_prompt() -> str:
             "optional ones may be omitted and will take the default shown.",
             "",
             *catalogue,
+            *vocabularies,
+            "",
             "VOCABULARY",
-            "  cases: " + json.dumps(list(_case_names())),
-            metric_line,
-            "  GRN columns for correlation: " + json.dumps(list(_grn_columns())),
             "  arc position s_norm runs 0 (atrial, upstream) to 1 (ventricular).",
             "  nodal von Mises exists only at step 14; wss is available at every step.",
             "  wss is missing (NaN) at interior solid nodes and those samples are dropped, "

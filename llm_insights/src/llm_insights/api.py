@@ -214,6 +214,7 @@ class Study:
         self._briefing: str | None = None
         self._history: list[Answer] = []
         self._seen_ids: set[str] = set()
+        self._questions_started: int = 0
 
     def __repr__(self) -> str:
         """Return a short representation naming the root and how much has been asked."""
@@ -429,6 +430,15 @@ class Study:
             )
         backend = _FollowUpGenerator(self.generator, prior) if prior else self.generator
 
+        # Ids are scoped to the study, but every proposal call is independent and a
+        # backend restarts its own numbering at H1 each time. Stamping the question
+        # number on is what keeps the second question's claims from being rejected
+        # wholesale as duplicates -- and it says, in the id itself, where a card came
+        # from. The counter advances before the run, not after it, so a question that
+        # fails part way through never lends its prefix to the next one.
+        self._questions_started += 1
+        id_prefix = f"q{self._questions_started:02d}_"
+
         result = investigate(
             self.dataset,
             backend,
@@ -439,6 +449,7 @@ class Study:
             max_narrow_rounds=max_narrow_rounds,
             min_rel_diff_floor=min_rel_diff_floor,
             seen_ids=self._seen_ids,
+            id_prefix=id_prefix,
         )
         cards = cards_from_run(result.hypotheses, result.outcomes)
 

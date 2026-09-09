@@ -135,6 +135,50 @@ def _validate(
     return admissible, rejected
 
 
+def _apply_id_prefix(raw_items: Sequence[Any], prefix: str) -> list[Any]:
+    """Stamp every proposed id with the prefix identifying the question that asked for it.
+
+    Each proposal call is independent: a backend has no memory of the ids a previous
+    question spent, so it reliably restarts at ``H1``. With one run-scoped ``seen_ids``
+    set, :func:`_validate` then rejects the whole of every question after the first.
+
+    Prefixing rather than suffixing is deliberate. ``q02_H1`` says which question the
+    claim came from, which a suffixed ``H1_r2`` does not, and it rewrites *every* id in
+    the batch by the same rule, so a model's own within-question numbering survives
+    intact. A duplicate *inside* one question is still a genuine collision and is still
+    rejected below.
+
+    Stamping is idempotent. :func:`~llm_insights.agent.generator.build_narrow_prompt`
+    serializes the refuted claim with its id already prefixed, so a model asked to narrow
+    ``q05_H5`` writes ``q05_H6`` back; adding the prefix a second time produced
+    ``q05_q05_H6`` in the live run of 2026-09-09. That id was unique and traceable and
+    still wrong -- provenance that repeats itself is something the next reader has to
+    explain away.
+
+    Args:
+        raw_items: The mappings the generator returned, untouched otherwise.
+        prefix: The prefix to stamp on. An empty prefix returns the items unchanged,
+            which is what a single-question run gets.
+
+    Returns:
+        The items, with any string ``id`` prefixed exactly once. A malformed item is
+        passed through as-is so that :func:`hypothesis_from_dict` reports it in its own
+        words.
+    """
+    if not prefix:
+        return list(raw_items)
+    stamped: list[Any] = []
+    for raw in raw_items:
+        if isinstance(raw, Mapping) and isinstance(raw.get("id"), str):
+            item = dict(raw)
+            if not item["id"].startswith(prefix):
+                item["id"] = f"{prefix}{item['id']}"
+            stamped.append(item)
+        else:
+            stamped.append(raw)
+    return stamped
+
+
 def _unique_id(candidate: str, seen_ids: set[str]) -> str:
     """Return an id not already used, suffixing the candidate if it collides."""
     if candidate not in seen_ids:
@@ -239,6 +283,7 @@ def investigate(
     max_narrow_rounds: int = 1,
     min_rel_diff_floor: float = 0.0,
     seen_ids: set[str] | None = None,
+    id_prefix: str = "",
 ) -> RunResult:
     """Run one investigation end to end.
 
@@ -269,6 +314,11 @@ def investigate(
             report covering both. **The set is mutated**, so the caller sees the ids
             this run added. The default of None keeps the old behaviour exactly: a
             fresh set per run, scoped to that run.
+        id_prefix: Stamped onto every id this run accepts, so that a backend which
+            restarts its numbering at ``H1`` for each independent proposal call does not
+            collide with the ids a previous question already spent. Passed by
+            :class:`llm_insights.api.Study` as ``"q02_"`` and so on. The default of ``""``
+            keeps a single-question run byte-identical to what it produced before.
 
     Returns:
         The :class:`RunResult`. Its ``meta`` carries:
@@ -296,7 +346,7 @@ def investigate(
 
     LOG.info("proposing %d hypotheses via %s", n, getattr(generator, "name", generator))
     raw_items = generator.propose(briefing, question, n)
-    raw_list = list(raw_items or [])
+    raw_list = _apply_id_prefix(list(raw_items or []), id_prefix)
     n_proposed += len(raw_list)
     transcript.append(
         {
@@ -332,7 +382,7 @@ def investigate(
         pending = []
         for parent, outcome in targets:
             successor, received, rejected = _narrow_one(
-                generator, briefing, parent, outcome, seen_ids, transcript
+                generator, briefing, parent, outcome, seen_ids, transcript, id_prefix
             )
             n_proposed += received
             n_rejected += rejected
@@ -386,6 +436,7 @@ def _narrow_one(
     outcome: Outcome,
     seen_ids: set[str],
     transcript: list[dict],
+    id_prefix: str = "",
 ) -> tuple[Hypothesis | None, int, int]:
     """Ask for one successor to a refuted claim and validate it.
 
@@ -401,6 +452,8 @@ def _narrow_one(
         outcome: Its outcome, including every observed number.
         seen_ids: Ids already used; mutated when a successor is accepted.
         transcript: Appended to with the raw exchange and any rejection.
+        id_prefix: The question's id prefix, applied to the successor exactly as it is
+            to a proposal, so a chain reads ``q02_H3`` -> ``q02_H6``.
 
     Returns:
         A tuple ``(successor_or_None, n_received, n_rejected)``, where ``n_received``
@@ -429,7 +482,8 @@ def _narrow_one(
     # rename below rather than a duplicate-id rejection here.
     scratch = set(seen_ids)
     scratch.discard(parent.id)
-    candidates, rejected = _validate([raw], scratch, transcript, "narrow")
+    stamped = _apply_id_prefix([raw], id_prefix)
+    candidates, rejected = _validate(stamped, scratch, transcript, "narrow")
     if not candidates:
         return None, 1, rejected
 
