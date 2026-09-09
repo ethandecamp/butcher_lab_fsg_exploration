@@ -147,7 +147,7 @@ def load_networkpoint(model_dir: str | Path) -> Any:
         raise FileNotFoundError(f"no networkpoint.py under {key}")
     if key not in sys.path:
         sys.path.insert(0, key)
-    import networkpoint  # noqa: PLC0415 - deferred on purpose; the path is runtime data
+    import networkpoint
 
     _NETWORKPOINT[key] = networkpoint
     return networkpoint
@@ -471,7 +471,7 @@ def _fingerprint(
     Returns:
         A hex digest.
     """
-    import hashlib  # noqa: PLC0415 - only needed on this path
+    import hashlib
 
     h = hashlib.sha256()
     h.update(np.ascontiguousarray(shear, dtype=np.float64).tobytes())
@@ -626,7 +626,7 @@ def build_parser() -> argparse.ArgumentParser:
     Returns:
         The parser.
     """
-    from llm_insights.api import DEFAULT_ROOT  # noqa: PLC0415 - avoids an import cycle
+    from llm_insights.api import DEFAULT_ROOT
 
     parser = argparse.ArgumentParser(
         prog="grn-rerun",
@@ -636,9 +636,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument("--root", type=Path, default=DEFAULT_ROOT, help="one_way_fsg_model dir")
-    parser.add_argument(
-        "--out", type=Path, default=Path("data/grn_full"), help="output directory"
-    )
+    parser.add_argument("--out", type=Path, default=Path("data/grn_full"), help="output directory")
     parser.add_argument(
         "--case",
         action="append",
@@ -684,7 +682,7 @@ def main(argv: list[str] | None = None) -> int:
     Returns:
         Process exit status.
     """
-    from llm_insights.io.dataset import CONDITION_BY_CASE  # noqa: PLC0415 - cycle-safe
+    from llm_insights.io.dataset import CONDITION_BY_CASE
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     args = build_parser().parse_args(argv)

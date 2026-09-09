@@ -41,7 +41,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from llm_insights.grn import runner  # noqa: E402
+from llm_insights.grn import runner
 
 
 def _resolve_root() -> Path:
@@ -141,35 +141,43 @@ class WiringMatchesDansFile(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
+        """Parse the scenario flags out of networkinput.py once."""
         cls.env = _module_constants(ROOT / "networkinput.py")
 
     def test_scenario_flags_match(self):
+        """The runner's scenario flags are the ones networkinput.py sets."""
         self.assertEqual(runner.SCENARIO_FLAGS, self.env["scenarios"])
 
     def test_scenario_order_matches(self):
+        """Scenario order matches networkinput.py, so columns line up with the shipped CSV."""
         # Column order in activities.csv follows this, so it is not merely cosmetic.
         self.assertEqual(list(runner.SCENARIO_FLAGS), list(self.env["scenarios"]))
 
     def test_integration_horizon_matches(self):
+        """t_end is the shipped horizon; shortening it would break the faithfulness gate."""
         # 400.0, not networkpoint.simulate's own 300.0 default.
         self.assertEqual(runner.T_END, self.env["T_END"])
         self.assertNotEqual(runner.T_END, 300.0)
 
     def test_normalization_ceilings_match(self):
+        """WSS_MAX and MECH_MAX match the shipped values, clipping included."""
         self.assertEqual(runner.WSS_MAX_DYN_CM2, self.env["WSS_MAX"])
         self.assertEqual(runner.MECH_MAX_PA, self.env["MECH_MAX"])
 
     def test_pinned_mid_range_drives_match(self):
+        """The drives networkinput.py pins are pinned here to the same values."""
         self.assertEqual(runner.SHEAR_MID_NORM, self.env["SHEAR_MID_NORM"])
         self.assertEqual(runner.MECH_MID_NORM, self.env["MECH_MID_NORM"])
 
     def test_the_extractor_is_not_vacuous(self):
+        """The flag extractor really reads the file, rather than returning defaults."""
         # If _module_constants silently returned {}, every assertion above would still
         # need a KeyError to fail -- so prove it actually read the file.
         self.assertIn("scenarios", self.env)
         self.assertEqual(self.env["OUTPUT_NODES"], ["Snai1", "Snai2", "EndMT"])
 
     def test_networkinput_is_never_imported(self):
+        """The networkinput module hardcodes a path and works at import, so it stays unimported."""
         # Importing it would execute a hardcoded /Users/sophiewang path and ~27,000
         # solves. The runner's source must not name it outside prose.
         source = (Path(runner.__file__)).read_text()
@@ -185,13 +193,16 @@ class NodeSet(unittest.TestCase):
     """All 24 nodes, in the solver's own order."""
 
     def test_twenty_four_nodes(self):
+        """All 24 network states are persisted, not just the shipped five."""
         self.assertEqual(len(runner.node_names(ROOT)), 24)
 
     def test_the_five_shipped_nodes_are_a_subset(self):
+        """The five nodes the shipped CSV carries are among the 24."""
         nodes = set(runner.node_names(ROOT))
         self.assertTrue({"Snai1", "Snai2", "EndMT", "NICD", "YAP_TAZ"} <= nodes)
 
     def test_the_nineteen_that_used_to_be_discarded_are_present(self):
+        """The 19 nodes the shipped pipeline discarded are now available."""
         nodes = set(runner.node_names(ROOT))
         # SMAD23 is the one demo card H6 had to be refused over.
         for name in ("SMAD23", "SMAD4", "SMAD67", "SMAD158", "beta_catenin", "HEY"):
@@ -201,7 +212,9 @@ class NodeSet(unittest.TestCase):
 # --- A synthetic case, with drives whose fixed point can be written down ----------
 
 
-def _write_synthetic_case(root: Path, case: str, rows: list[tuple[float, float, float, float]]) -> None:
+def _write_synthetic_case(
+    root: Path, case: str, rows: list[tuple[float, float, float, float]]
+) -> None:
     """Write a minimal GRN input grid in the real layout.
 
     Args:
@@ -250,6 +263,7 @@ class SyntheticFixedPoint(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
+        """Solve the synthetic case whose fixed point is known in closed form."""
         cls.p = runner.load_networkpoint(ROOT).Params()
 
     def _expected(self, shear: float, mech: float) -> dict[str, float]:
@@ -274,6 +288,7 @@ class SyntheticFixedPoint(unittest.TestCase):
         }
 
     def test_solver_lands_on_the_closed_form(self):
+        """The solver reaches the analytic fixed point of the synthetic network."""
         nodes = runner.node_names(ROOT)
         shear, mech = 0.4, 0.7
         values = runner.solve_points(
@@ -284,6 +299,7 @@ class SyntheticFixedPoint(unittest.TestCase):
             self.assertAlmostEqual(got, want, delta=1e-6, msg=name)
 
     def test_a_wrong_drive_would_be_caught(self):
+        """Perturbing the drive moves the fixed point, so the check is not vacuous."""
         # The negative control for the assertion above: YAP_TAZ at mech=0.7 must not
         # also satisfy the prediction for mech=0.2, or the test proves nothing.
         self.assertGreater(
@@ -292,9 +308,12 @@ class SyntheticFixedPoint(unittest.TestCase):
         )
 
     def test_scenarios_pin_the_unused_drive(self):
+        """Each scenario pins the drive it does not use, as networkinput.py does."""
         root = Path(self.enterContext(_tempdir()))
         # One surface point (wss present) and one interior point (wss NaN).
-        _write_synthetic_case(root, "synth", [(0.0, 0.0, 70.0, 12.0), (1.0, 0.0, 70.0, float("nan"))])
+        _write_synthetic_case(
+            root, "synth", [(0.0, 0.0, 70.0, 12.0), (1.0, 0.0, 70.0, float("nan"))]
+        )
         inputs = runner.load_case_inputs(root, "synth")
 
         shear, mech = runner.scenario_inputs(inputs, "shear_only")
@@ -318,6 +337,7 @@ class WrittenOutput(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
+        """Run one small case to disk once, for the output-shape assertions."""
         cls._tmp = _tempdir()
         cls.root = Path(cls._tmp.__enter__())
         _write_synthetic_case(
@@ -332,23 +352,28 @@ class WrittenOutput(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls) -> None:
+        """Remove the temporary output directory."""
         cls._tmp.__exit__(None, None, None)
 
     def test_every_node_and_scenario_has_a_column(self):
+        """The CSV carries one column per node per scenario, all 24 x 3."""
         nodes = runner.node_names(ROOT)
         want = {f"{n}_{s}" for n in nodes for s in runner.SCENARIO_FLAGS}
         self.assertTrue(want <= set(self.frame.columns))
         self.assertEqual(len(want), 24 * 3)
 
     def test_input_columns_are_carried_through(self):
+        """The six input columns are written alongside the activities."""
         self.assertEqual(list(self.frame.columns[:6]), list(runner.INPUT_COLUMNS))
 
     def test_interior_points_are_nan_under_shear_only_and_finite_otherwise(self):
+        """Missing shear stays NaN under shear_only rather than being coerced to zero."""
         self.assertTrue(np.isnan(self.frame["EndMT_shear_only"].to_numpy()[2]))
         self.assertTrue(np.isfinite(self.frame["EndMT_combined"].to_numpy()[2]))
         self.assertTrue(np.isfinite(self.frame["SMAD23_mech_only"].to_numpy()).all())
 
     def test_activities_are_in_range(self):
+        """Every finite activity lies in [0, 1], as a Hill-function network requires."""
         node_cols = [c for c in self.frame.columns if c not in runner.INPUT_COLUMNS]
         values = self.frame[node_cols].to_numpy()
         finite = values[np.isfinite(values)]
@@ -361,6 +386,7 @@ class CheckpointResume(unittest.TestCase):
     """An interrupted run resumes to a bit-identical answer."""
 
     def test_resume_matches_an_uninterrupted_run(self):
+        """A run interrupted and resumed from its checkpoint equals an uninterrupted one."""
         tmp = Path(self.enterContext(_tempdir()))
         shear = np.linspace(0.1, 0.9, 6)
         mech = np.linspace(0.9, 0.1, 6)
@@ -372,7 +398,7 @@ class CheckpointResume(unittest.TestCase):
         original = runner.Parallel
         runner.Parallel = boom.wrap(original)
         try:
-            with self.assertRaises(_Interrupted):
+            with self.assertRaises(_InterruptedRunError):
                 runner.solve_pairs(
                     ROOT, shear, mech, n_jobs=1, chunk_size=2, group_size=1, checkpoint=ckpt
                 )
@@ -391,6 +417,7 @@ class CheckpointResume(unittest.TestCase):
         np.testing.assert_array_equal(resumed, clean)
 
     def test_a_checkpoint_for_other_inputs_is_ignored(self):
+        """A checkpoint whose input digest differs is discarded, not silently reused."""
         tmp = Path(self.enterContext(_tempdir()))
         ckpt = tmp / "stale.npz"
         first = np.array([0.3])
@@ -403,7 +430,7 @@ class CheckpointResume(unittest.TestCase):
         np.testing.assert_array_equal(again, direct)
 
 
-class _Interrupted(RuntimeError):
+class _InterruptedRunError(RuntimeError):
     """Stands in for the overnight kill an operator cannot schedule inside a test."""
 
 
@@ -443,7 +470,7 @@ class _FailAfter:
 
             def __call__(self, *args: Any, **kwargs: Any) -> Any:
                 if outer.seen >= outer.limit:
-                    raise _Interrupted("simulated overnight kill")
+                    raise _InterruptedRunError("simulated overnight kill")
                 outer.seen += 1
                 return self._inner(*args, **kwargs)
 
@@ -466,27 +493,37 @@ class RealInputGrids(unittest.TestCase):
     """The input grid this runner reads is the one the shipped results were made from."""
 
     def test_row_counts_match_the_shipped_results(self):
+        """Row counts equal the shipped results_spatial.csv, case by case."""
         from llm_insights.io.dataset import GRN_RESULT_DIR_BY_CASE
 
         for case in CASES:
             inputs = runner.load_case_inputs(ROOT, case)
             shipped = pd.read_csv(
-                ROOT / "AHA GRN Plots" / "3scenarios_results" / GRN_RESULT_DIR_BY_CASE[case]
+                ROOT
+                / "AHA GRN Plots"
+                / "3scenarios_results"
+                / GRN_RESULT_DIR_BY_CASE[case]
                 / "results_spatial.csv"
             )
             self.assertEqual(inputs.n_points, len(shipped), case)
 
     def test_coordinates_and_drives_match_the_shipped_results(self):
+        """Coordinates and mechanical drives align with the shipped CSV exactly."""
         from llm_insights.io.dataset import GRN_RESULT_DIR_BY_CASE
 
         for case in CASES:
             inputs = runner.load_case_inputs(ROOT, case)
             shipped = pd.read_csv(
-                ROOT / "AHA GRN Plots" / "3scenarios_results" / GRN_RESULT_DIR_BY_CASE[case]
+                ROOT
+                / "AHA GRN Plots"
+                / "3scenarios_results"
+                / GRN_RESULT_DIR_BY_CASE[case]
                 / "results_spatial.csv"
             )
             np.testing.assert_allclose(inputs.x_m, shipped["x_m"].to_numpy(), atol=1e-12)
-            np.testing.assert_allclose(inputs.mech_norm, shipped["mech_norm"].to_numpy(), atol=1e-12)
+            np.testing.assert_allclose(
+                inputs.mech_norm, shipped["mech_norm"].to_numpy(), atol=1e-12
+            )
             np.testing.assert_array_equal(
                 inputs.wss_has_data, np.isfinite(shipped["wss_mag_dyn_cm2"].to_numpy())
             )

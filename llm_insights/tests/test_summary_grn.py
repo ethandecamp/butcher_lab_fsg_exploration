@@ -37,10 +37,10 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from llm_insights.grn import runner, store  # noqa: E402
-from llm_insights.io.dataset import Dataset  # noqa: E402
-from llm_insights.summary.metrics import METRIC_REGISTRY, metric_value  # noqa: E402
-from llm_insights.summary.sections.grn import PATHWAYS, grn_section  # noqa: E402
+from llm_insights.grn import runner, store
+from llm_insights.io.dataset import Dataset
+from llm_insights.summary.metrics import METRIC_REGISTRY, metric_value
+from llm_insights.summary.sections.grn import PATHWAYS, grn_section
 
 
 def _resolve_root() -> Path:
@@ -298,11 +298,22 @@ def _stated_constant_nodes(text: str) -> dict[str, float]:
         start = next(i for i, ln in enumerate(lines) if ln.startswith("**Pinned by construction"))
     except StopIteration:
         return {}
-    body = lines[start + 1].strip().rstrip(".")
-    return {
-        name: float(value)
-        for name, value in (item.strip().split(" = ") for item in body.split(", "))
-    }
+    # The header sentence wraps onto a continuation line, so the "name = value" list is
+    # not necessarily on the line straight after it. Scan forward for the line that
+    # actually carries assignments, stopping at the blank line that ends the paragraph.
+    # Reading a fixed offset made this helper raise instead of compare, which turned the
+    # answer-preservation gate into an error rather than a verdict.
+    for line in lines[start + 1 :]:
+        if not line.strip():
+            break
+        if " = " not in line:
+            continue
+        body = line.strip().rstrip(".")
+        return {
+            name.strip(): float(value)
+            for name, value in (item.split(" = ", 1) for item in body.split(", "))
+        }
+    return {}
 
 
 def _stated_table(text: str, heading: str) -> list[tuple[str, float]]:
@@ -435,8 +446,7 @@ def _build_questions() -> list[Question]:
             "all_params",
             "What are every one of the network's parameter values?",
             lambda ds: {  # noqa: ARG005
-                k: float(v)
-                for k, v in vars(runner.load_networkpoint(ROOT).Params()).items()
+                k: float(v) for k, v in vars(runner.load_networkpoint(ROOT).Params()).items()
             },
             lambda ds, t: _stated_params(t),  # noqa: ARG005
         )
@@ -493,9 +503,7 @@ def _build_questions() -> list[Question]:
             "constant_nodes",
             "Which nodes are the same everywhere, in every case?",
             lambda ds: frozenset(  # noqa: ARG005
-                n
-                for n, s in store.summarize_nodes(CASES).items()
-                if s.is_constant
+                n for n, s in store.summarize_nodes(CASES).items() if s.is_constant
             ),
             lambda ds, t: frozenset(_stated_constant_nodes(t)),  # noqa: ARG005
             needs_data=True,
@@ -539,9 +547,7 @@ def _build_questions() -> list[Question]:
             "Which node varies most across the cushion?",
             lambda ds: max(  # noqa: ARG005
                 runner.node_names(ROOT),
-                key=lambda n: float(
-                    np.mean([np.nanstd(_activity(c, n)) for c in CASES])
-                ),
+                key=lambda n: float(np.mean([np.nanstd(_activity(c, n)) for c in CASES])),
             ),
             lambda ds, t: _stated_table(t, "**Most spatially variable")[0][0],  # noqa: ARG005
             needs_data=True,
@@ -566,8 +572,9 @@ def _build_questions() -> list[Question]:
         Question(
             "is_smad23_constant",
             "Is SMAD23 the same everywhere, or does it vary?",
-            lambda ds: float(np.nanstd(_activity(CASES[1], "SMAD23")))  # noqa: ARG005
-            < store.CONSTANT_TOL,
+            lambda ds: (  # noqa: ARG005 - Question's signature is fixed for every entry
+                float(np.nanstd(_activity(CASES[1], "SMAD23"))) < store.CONSTANT_TOL
+            ),
             lambda ds, t: "SMAD23" in _stated_constant_nodes(t),  # noqa: ARG005
             needs_data=True,
         )
@@ -675,18 +682,22 @@ class TestGrnAnswerPreservation(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
+        """Open the dataset and build the GRN section once for the whole suite."""
         cls.ds = Dataset(ROOT)
         cls.text = _section_text(cls.ds)
 
     def test_question_set_is_large_enough(self):
+        """The suite promises at least 12 GRN questions; hold it to that."""
         # TASK-014 asks for at least 12.
         self.assertGreaterEqual(len(QUESTIONS), 12, "GRN answer-preservation set has shrunk")
 
     def test_structural_questions_do_not_need_the_rerun(self):
+        """Questions about topology answer from the section alone, with no re-run needed."""
         # The topology half of the section must be answerable in a fresh checkout.
         self.assertGreaterEqual(sum(1 for q in QUESTIONS if not q.needs_data), 12)
 
     def test_all_questions_agree(self):
+        """Every question answers the same from the full arrays and from the section."""
         failures: list[str] = []
         skipped = 0
         for q in QUESTIONS:
@@ -741,20 +752,24 @@ class TestSectionIntegrity(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
+        """Build the GRN section once for the structural assertions."""
         cls.ds = Dataset(ROOT)
         cls.text = _section_text(cls.ds)
 
     def test_pathway_grouping_partitions_the_node_set(self):
+        """The pathway groups cover all 24 nodes exactly once."""
         listed = [n for _, nodes in PATHWAYS for n in nodes]
         self.assertEqual(sorted(listed), sorted(runner.node_names(ROOT)))
         self.assertEqual(len(listed), len(set(listed)), "a node is listed under two pathways")
 
     def test_it_supersedes_the_stale_caveat(self):
+        """The section corrects the briefing's stale 'only 5 of 23 nodes' caveat."""
         # Caveat 4 still says only 5 of 23 nodes were written out. That file is frozen,
         # so this section has to say so out loud or the briefing contradicts itself.
         self.assertIn("supersedes caveat 4", self.text)
 
     def test_briefing_stays_under_the_ceiling(self):
+        """The briefing stays under the 20,000-character ceiling with the section added."""
         from llm_insights.summary.briefing import build_briefing
 
         text = build_briefing(self.ds)
@@ -762,6 +777,7 @@ class TestSectionIntegrity(unittest.TestCase):
         self.assertLess(len(text.encode()), BRIEFING_CHAR_CEILING, "briefing exceeded it in bytes")
 
     def test_the_section_is_in_the_briefing(self):
+        """The section reaches the assembled briefing through the registry."""
         from llm_insights.summary.briefing import build_briefing
 
         self.assertIn("## 4b. The gene network", build_briefing(self.ds))
@@ -782,10 +798,12 @@ class TestNewMetricsAreWellFormed(unittest.TestCase):
     )
 
     def test_all_registered(self):
+        """Every new GRN metric is present in the metric registry."""
         for name in self.NEW:
             self.assertIn(name, METRIC_REGISTRY, name)
 
     def test_units_and_provenance(self):
+        """Every new GRN metric declares units and a provenance string."""
         for name in self.NEW:
             md = METRIC_REGISTRY[name]
             self.assertTrue(md.units, name)

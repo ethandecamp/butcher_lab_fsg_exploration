@@ -296,8 +296,8 @@ def grn_section(ds: Any, n_profile_points: int) -> list[str]:
         "",
         f"**Normalization ceilings**: shear against {SHEAR_MAX_DYN_CM2:g} dyn/cm^2, mechanical",
         f"stress against {MECH_MAX_PA:g} Pa, both clipped to [0, 1]. Read with caveat 1:",
-        f"`ec50_input`=0.5 puts half-maximal drive at half the ceiling ({SHEAR_MAX_DYN_CM2/2:g}",
-        f"dyn/cm^2, {MECH_MAX_PA/2:g} Pa), and every point above a ceiling is pinned at exactly",
+        f"`ec50_input`=0.5 puts half-maximal drive at half the ceiling ({SHEAR_MAX_DYN_CM2 / 2:g}",
+        f"dyn/cm^2, {MECH_MAX_PA / 2:g} Pa), and every point above a ceiling is pinned at exactly",
         "the same activity as every other point above it.",
         "",
     ]

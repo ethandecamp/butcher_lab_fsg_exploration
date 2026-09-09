@@ -172,7 +172,10 @@ def summarize_nodes(
         briefing, not break it.
     """
     if not available(cases, directory):
-        LOG.warning("no full-node GRN store under %s; node statistics omitted", directory or default_dir())
+        LOG.warning(
+            "no full-node GRN store under %s; node statistics omitted",
+            directory or default_dir(),
+        )
         return {}
 
     frames = {case: load_activities(case, directory) for case in cases}

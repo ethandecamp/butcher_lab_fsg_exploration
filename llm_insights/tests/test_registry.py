@@ -52,11 +52,47 @@ def _resolve_root() -> Path:
 ROOT = _resolve_root()
 HAS_DATA = (ROOT / "FSG Results").is_dir()
 
-#: The five sections TASK-012 moved out of ``briefing.py``, in render order.
-EXPECTED_SECTIONS = ("metrics", "profiles", "trajectory", "caveats", "protocol")
+#: The five sections TASK-012 moved out of ``briefing.py``, in render order. Later phases
+#: add their own -- Lane B's ``grn`` section lands between ``caveats`` and ``protocol``
+#: -- so these are asserted to be *present and still in this relative order*, never to be
+#: the whole registry. A test that pinned the exact tuple would fail the first time the
+#: extension point was actually used, which would punish the registry for working.
+ORIGINAL_SECTIONS = ("metrics", "profiles", "trajectory", "caveats", "protocol")
 
-#: The same five modules, in the order ``sections/__init__.py`` does *not* use.
-REVERSE_IMPORT_ORDER = ("protocol", "caveats", "trajectory", "profiles", "metrics")
+#: The sixteen metrics TASK-012 inherited. Named rather than counted, for the same
+#: reason: a new metric must not break a refactor guard, but losing one of these must.
+ORIGINAL_METRICS = (
+    "arc_length_mm",
+    "cushion_height_mm",
+    "endmt_mean_combined",
+    "endmt_sd_combined",
+    "grn_saturated_fraction",
+    "growth_mean",
+    "growth_pinned_low_fraction",
+    "mech_clipped_fraction",
+    "von_mises_lr_asymmetry",
+    "von_mises_mean_pa",
+    "von_mises_peak_pa",
+    "von_mises_peak_s",
+    "wss_lr_asymmetry",
+    "wss_mean_dyn_cm2",
+    "wss_peak_dyn_cm2",
+    "wss_peak_s",
+)
+
+
+def _is_subsequence(needles: tuple[str, ...], haystack: tuple[str, ...]) -> bool:
+    """Report whether ``needles`` appears in ``haystack`` in order, gaps allowed.
+
+    Args:
+        needles: The names that must appear, in this relative order.
+        haystack: The full render order.
+
+    Returns:
+        True when every needle appears and their relative order is preserved.
+    """
+    it = iter(haystack)
+    return all(needle in it for needle in needles)
 
 
 class _StubDataset:
@@ -182,8 +218,18 @@ class TestRealSections(unittest.TestCase):
     """The five sections TASK-012 moved really are registered, in the right order."""
 
     def test_the_five_original_sections_are_registered(self) -> None:
-        """No section was lost in the move out of briefing.py."""
-        self.assertEqual(registry.section_names(), EXPECTED_SECTIONS)
+        """No section was lost in the move out of briefing.py, and none was reordered.
+
+        Asserted as a subsequence, so a lane adding its own section passes and a lane
+        dropping or reordering one of the five does not.
+        """
+        names = registry.section_names()
+        for original in ORIGINAL_SECTIONS:
+            self.assertIn(original, names, f"{original} section was lost")
+        self.assertTrue(
+            _is_subsequence(ORIGINAL_SECTIONS, names),
+            f"the original sections were reordered: {names}",
+        )
 
     def test_every_section_declares_a_distinct_order(self) -> None:
         """Distinct orders keep the render order stable under any tie-break."""
@@ -204,18 +250,48 @@ class TestImportOrderIndependence(unittest.TestCase):
         cls.reference = build_briefing(cls.ds)
 
     def test_reverse_import_order_produces_an_identical_briefing(self) -> None:
-        """The registry sorts; it does not remember who registered first."""
-        saved = dict(registry._SECTIONS)
+        """The registry sorts; it does not remember who registered first.
+
+        The modules to re-import are **discovered from the registry**, not hardcoded, so
+        this covers every section any lane has added rather than only the original five.
+        Hardcoding them meant a newly added section was dropped from the rebuilt briefing
+        and the test failed for the wrong reason.
+        """
+        import llm_insights.summary.metrics as metrics_module
+
+        saved_sections = dict(registry._SECTIONS)
+        saved_metrics = dict(metrics_module.METRIC_REGISTRY)
+        saved_metric_names = metrics_module.METRIC_NAMES
+        expected_names = registry.section_names()
+        modules = [section.fn.__module__ for section in registry.registered_sections()]
+        self.assertGreaterEqual(len(modules), len(ORIGINAL_SECTIONS))
+
+        # A section module may also register metrics at import time (Lane B's grn section
+        # does). Re-importing it therefore re-runs register_metric, which rightly refuses
+        # a duplicate name. So the metrics those modules own are withdrawn first and the
+        # reload puts them back -- rather than relaxing the duplicate guard, which is one
+        # of the few things protecting an already-written hypothesis from being silently
+        # re-pointed at a different computation.
+        owned = set(modules)
+        withdrawn = [
+            name
+            for name, definition in metrics_module.METRIC_REGISTRY.items()
+            if getattr(definition.fn, "__module__", None) in owned
+        ]
         try:
             registry._SECTIONS.clear()
-            for name in REVERSE_IMPORT_ORDER:
-                module = importlib.import_module(f"llm_insights.summary.sections.{name}")
-                importlib.reload(module)
-            self.assertEqual(registry.section_names(), EXPECTED_SECTIONS)
+            for name in withdrawn:
+                del metrics_module.METRIC_REGISTRY[name]
+            for module_name in reversed(modules):
+                importlib.reload(importlib.import_module(module_name))
+            self.assertEqual(registry.section_names(), expected_names)
             rebuilt = build_briefing(self.ds)
         finally:
             registry._SECTIONS.clear()
-            registry._SECTIONS.update(saved)
+            registry._SECTIONS.update(saved_sections)
+            metrics_module.METRIC_REGISTRY.clear()
+            metrics_module.METRIC_REGISTRY.update(saved_metrics)
+            metrics_module.METRIC_NAMES = saved_metric_names
         self.assertEqual(rebuilt, self.reference, "briefing changed with import order")
 
     def test_the_briefing_is_reproducible_within_one_import_order(self) -> None:
@@ -231,8 +307,15 @@ class TestMetricRegistry(unittest.TestCase):
         self.assertIs(METRIC_REGISTRY, METRICS)
 
     def test_the_sixteen_original_metrics_are_still_registered(self) -> None:
-        """TASK-012 was a refactor: no metric was added, moved or lost."""
-        self.assertEqual(len(METRIC_REGISTRY), 16)
+        """None of the sixteen TASK-012 inherited was lost, and every metric is documented.
+
+        The count is deliberately not asserted. Later phases register more through
+        ``register_metric`` -- that is what the extension point is for -- so this names
+        the sixteen instead. Losing one still fails; adding one does not.
+        """
+        for name in ORIGINAL_METRICS:
+            self.assertIn(name, METRIC_REGISTRY, f"metric {name} was lost")
+        self.assertGreaterEqual(len(METRIC_REGISTRY), len(ORIGINAL_METRICS))
         for name, definition in METRIC_REGISTRY.items():
             self.assertIsInstance(definition, MetricDef)
             self.assertTrue(definition.units, f"{name} has no units")
