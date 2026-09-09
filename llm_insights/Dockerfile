@@ -50,6 +50,14 @@ RUN pip install --no-cache-dir -e . \
 COPY tests ./tests
 COPY data ./data
 
+# The packaging files themselves. tests/test_docker.py asserts against their text --
+# that the dataset is mounted rather than baked, that this gate exists at all, that the
+# instructions cover `git lfs pull` -- so without them here those nineteen guard tests
+# do not skip, they fail, and the build cannot complete. Copying them in is also the
+# stronger arrangement: the image carries the assertions made about it, so the guards
+# run against exactly the Dockerfile that built it. A few kilobytes.
+COPY Dockerfile .dockerignore INSTRUCTIONS_DOCKER.md ./
+
 # The build-time gate. If any test fails, this layer fails and no image is produced.
 RUN python3 -m pytest tests -q
 

@@ -24,10 +24,17 @@ dist/
 .DS_Store
 
 # Generated output: reports, cards, briefings, scratch runs, precomputed surfaces.
-# One file is deliberately kept -- the recorded transcript the `smoke` entrypoint
-# replays, which is what lets the container prove itself with no model and no network.
+# Two files are deliberately kept, and both are checked-in fixtures rather than
+# generated output:
+#   * demo_transcript.json -- the recorded transcript the `smoke` entrypoint replays,
+#     which is what lets the container prove itself with no model and no network;
+#   * example_cards.json   -- the shipped card fixture that eleven tests in
+#     tests/test_cards.py load. Excluding it does not fail the build context; it fails
+#     the build-time test gate, several layers later, with a FileNotFoundError that
+#     looks like a code bug rather than a packaging one.
 data/
 !data/demo_transcript.json
+!data/example_cards.json
 
 # Working notes. They change constantly and would bust the layer cache for nothing.
 TASKS/

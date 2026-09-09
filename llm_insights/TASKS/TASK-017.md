@@ -1,6 +1,6 @@
 # TASK-017 — Container, and instructions a non-programmer can follow
 
-**STATUS:** TODO
+**STATUS:** IN PROGRESS — Lane C (Claude Opus 5), claimed 2026-09-08
 **Phase:** 1, Lane C (second). Branch `feat/lane-c-infra`.
 **Depends on:** TASK-016.
 
