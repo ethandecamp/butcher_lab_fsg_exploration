@@ -355,6 +355,44 @@ stub executable written into a temp directory, and the response fixtures mirror 
 
 ---
 
+## 6b. Regenerate the full 24-node GRN tables
+
+`networkinput.py` solves a 24-node network at every spatial point and then writes only five of
+those nodes. TASK-013 re-runs the same network, with the same solver settings and the same three
+scenarios, and keeps all 24. That output is what the briefing's gene-network section and the
+`*_mean_combined` metrics read.
+
+It is **derived output and is gitignored** (~12 MB per case, 36 MB in all). A fresh checkout does
+not have it: the briefing still builds, and the GRN node metrics read `n/a` until you run this.
+
+```bash
+cd llm_insights
+source .venv/bin/activate
+PYTHONPATH=src python3 -m llm_insights.grn.runner --out data/grn_full
+```
+
+Roughly **30 minutes on 10 cores** — 41,067 distinct ODE solves after de-duplication. It
+checkpoints per case and per scenario under `data/grn_full/<case>/_checkpoints/`, so an
+interrupted run resumes where it stopped rather than starting over; just re-run the same command.
+
+Useful flags:
+
+```
+--case flow_U0p0360     one case only; repeatable
+--subsample 200         first N grid points only (smoke tests; not comparable to the shipped CSV)
+--time-only 20          time N solves, print the extrapolated cost, and exit
+--n-jobs 4              fewer workers
+--no-resume             ignore and do not write checkpoints
+--param n=2.5           perturb one networkpoint.Params field (negative control only)
+```
+
+`--param` produces numbers that are deliberately **not** faithful to Dan's model. Never write a
+perturbed run into `data/grn_full`; give it its own `--out`.
+
+After installation (`pip install -e .`) the same thing is on PATH as `grn-rerun`.
+
+---
+
 ## 7. What the pieces are
 
 | Module | What it does |
@@ -363,6 +401,7 @@ stub executable written into a temp directory, and the response fixtures mirror 
 | `summary/metrics.py` | 16 named scalar metrics, each with units and provenance. |
 | `summary/profiles.py` | Fields collapsed onto normalized arc length, 25 points. |
 | `summary/briefing.py` | Assembles the ~3,200-token briefing the model reads. |
+| `grn/` | Re-runs Dan's 24-node GRN over the whole grid and reads the result back. |
 | `harness/` | The falsifier: six executable primitives, strict parsing, a runner that never raises. |
 | `agent/generator.py` | The prompts, the response parser, and the API-key backends. |
 | `agent/subscription.py` | The keyless backends: Claude Code CLI and the paste fallback. |

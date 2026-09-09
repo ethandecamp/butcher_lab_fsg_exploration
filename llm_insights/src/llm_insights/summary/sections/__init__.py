@@ -16,10 +16,11 @@ from __future__ import annotations
 
 from llm_insights.summary.sections import (
     caveats,
+    grn,
     metrics,
     profiles,
     protocol,
     trajectory,
 )
 
-__all__ = ["caveats", "metrics", "profiles", "protocol", "trajectory"]
+__all__ = ["caveats", "grn", "metrics", "profiles", "protocol", "trajectory"]

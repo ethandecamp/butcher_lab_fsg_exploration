@@ -28,6 +28,7 @@ dev = [
 # TASK-001 deferred; the GRN response surface was not needed for the demo.
 # precompute-grn-surface = "llm_insights.grn_surface.precompute:main"
 llm-insights-investigate = "llm_insights.agent.run:main"
+grn-rerun = "llm_insights.grn.runner:main"
 
 [build-system]
 requires = ["setuptools>=68"]

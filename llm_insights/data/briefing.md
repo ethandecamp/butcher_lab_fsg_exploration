@@ -15,13 +15,20 @@ s in [0, 1], running from the atrial (upstream) end at s=0 to the ventricular
 | metric                       | units         |  Underflow |    Healthy |   Overflow |
 | ---------------------------- | ------------- | ---------- | ---------- | ---------- |
 | arc_length_mm                | mm            |      1.020 |     0.9055 |     0.8741 |
+| beta_catenin_mean_combined   | dimensionless |     0.0781 |     0.0786 |     0.0796 |
+| bmp2456_mean_combined        | dimensionless |     0.0981 |     0.0975 |     0.0966 |
 | cushion_height_mm            | mm            |     0.2500 |     0.1686 |     0.1244 |
 | endmt_mean_combined          | dimensionless |     0.0715 |     0.3066 |     0.3773 |
 | endmt_sd_combined            | dimensionless |     0.0311 |     0.1281 |     0.0697 |
 | grn_saturated_fraction       | dimensionless |   0.00e+00 |     0.2964 |     0.4404 |
 | growth_mean                  | dimensionless |      1.198 |     0.6879 |     0.5899 |
 | growth_pinned_low_fraction   | dimensionless |   5.71e-04 |     0.6127 |     0.7912 |
+| hey_mean_combined            | dimensionless |     0.5724 |     0.5747 |     0.5803 |
 | mech_clipped_fraction        | dimensionless |   1.72e-04 |     0.3372 |     0.4626 |
+| nicd_mean_combined           | dimensionless |     0.2318 |     0.2330 |     0.2365 |
+| smad23_mean_combined         | dimensionless |     0.0019 |     0.0019 |     0.0019 |
+| smad23_sd_combined           | dimensionless |   4.62e-04 |   4.71e-04 |   4.87e-04 |
+| smad67_mean_combined         | dimensionless |     0.2266 |     0.2301 |     0.2354 |
 | von_mises_lr_asymmetry       | dimensionless |    -0.4580 |    -0.8224 |    -0.7381 |
 | von_mises_mean_pa            | Pa            |      6.978 |     83.888 |      108.7 |
 | von_mises_peak_pa            | Pa            |      235.8 |      596.7 |      859.0 |
@@ -30,11 +37,16 @@ s in [0, 1], running from the atrial (upstream) end at s=0 to the ventricular
 | wss_mean_dyn_cm2             | dyn/cm^2      |     12.767 |     16.871 |     23.393 |
 | wss_peak_dyn_cm2             | dyn/cm^2      |     22.607 |     33.551 |     43.227 |
 | wss_peak_s                   | dimensionless |     0.5117 |     0.6210 |     0.7716 |
+| yap_taz_mean_combined        | dimensionless |     0.0241 |     0.4720 |     0.6246 |
 
 ### What each metric means, and where it comes from
 
 - **arc_length_mm** (mm) — Traced length of the cushion surface outline at the final step.
   - source: cumulative polyline length of the angle-ordered arc; NOT the x-extent chord, which is what metrics_summary.csv's length_mm reports
+- **beta_catenin_mean_combined** (dimensionless) — Mean beta-catenin activity, combined scenario. The Wnt hub.
+  - source: data/grn_full/<case>/activities.csv column beta_catenin_combined, 80% GRN grid (TASK-013 re-run)
+- **bmp2456_mean_combined** (dimensionless) — Mean BMP-2/4/5/6 ligand activity, combined scenario. Repressed by HEY and by shear.
+  - source: data/grn_full/<case>/activities.csv column BMP_2456_combined, 80% GRN grid (TASK-013 re-run)
 - **cushion_height_mm** (mm) — Maximum cushion height above the channel floor at the final step.
   - source: max y of step_014/arc_data.npz, converted m -> mm
 - **endmt_mean_combined** (dimensionless) — Mean EndMT activity under the combined shear+stress scenario.
@@ -47,8 +59,18 @@ s in [0, 1], running from the atrial (upstream) end at s=0 to the ventricular
   - source: mean of step_014/g_field.npy over 22,769 cells
 - **growth_pinned_low_fraction** (dimensionless) — Fraction of cells pinned at the growth floor, i.e. not growing at all.
   - source: count(g <= 0.5 + 1e-9) / 22,769 cells in step_014/g_field.npy; note the shipped floor is 0.5 while solid_solver.py's current default is 0.3, so these runs are not reproducible from the source as it stands
+- **hey_mean_combined** (dimensionless) — Mean HEY activity, combined scenario. Notch's output and the repressor of BMP_2456.
+  - source: data/grn_full/<case>/activities.csv column HEY_combined, 80% GRN grid (TASK-013 re-run)
 - **mech_clipped_fraction** (dimensionless) — Fraction of solid nodes whose von Mises exceeds the 100 Pa GRN normalization ceiling.
   - source: count(von_mises_Pa > MECH_MAX_PA) / 11,615 solid nodes (full mesh denominator)
+- **nicd_mean_combined** (dimensionless) — Mean NICD activity, combined scenario. The Notch hub; shear drives it directly.
+  - source: data/grn_full/<case>/activities.csv column NICD_combined, 80% GRN grid (TASK-013 re-run)
+- **smad23_mean_combined** (dimensionless) — Mean SMAD2/3 activity, combined scenario. The TGFb transducer.
+  - source: data/grn_full/<case>/activities.csv column SMAD23_combined, 80% GRN grid (TASK-013 re-run)
+- **smad23_sd_combined** (dimensionless) — Spatial standard deviation of SMAD2/3 activity, combined scenario.
+  - source: data/grn_full/<case>/activities.csv column SMAD23_combined, 80% GRN grid (TASK-013 re-run)
+- **smad67_mean_combined** (dimensionless) — Mean inhibitory SMAD6/7 activity, combined scenario. Shear raises it, damping TGFb.
+  - source: data/grn_full/<case>/activities.csv column SMAD67_combined, 80% GRN grid (TASK-013 re-run)
 - **von_mises_lr_asymmetry** (dimensionless) — Ventricular-minus-atrial mean von Mises stress on the surface, over the overall mean.
   - source: surface-band nodes projected onto arc, halves split at s=0.5
 - **von_mises_mean_pa** (Pa) — Mean von Mises stress over the whole cushion at the final step.
@@ -65,6 +87,8 @@ s in [0, 1], running from the atrial (upstream) end at s=0 to the ventricular
   - source: max of tau_mag from step_014/arc_data.npz, converted Pa -> dyn/cm^2 (x10)
 - **wss_peak_s** (dimensionless) — Normalized arc position (0 atrial, 1 ventricular) of the wall shear stress maximum.
   - source: argmax of tau_mag on the angle-ordered arc from step_014/arc_data.npz
+- **yap_taz_mean_combined** (dimensionless) — Mean YAP/TAZ activity, combined scenario. The only node mechanical stress drives.
+  - source: data/grn_full/<case>/activities.csv column YAP_TAZ_combined, 80% GRN grid (TASK-013 re-run)
 
 ## 2. Arc-length profiles (25 points, atrial s=0 to ventricular s=1)
 
@@ -139,6 +163,82 @@ Overflow  0.250  0.139  0.133  0.131  0.130  0.128  0.127  0.126  0.126  0.125  
 7. **Growth floor.** The shipped runs pin g at 0.5, while the current source default
    is 0.3, so these runs are not reproducible from the code as it stands.
 
+## 4b. The gene network: nodes, wiring, parameters
+
+A **24-state** ODE system (`networkpoint.py`): each node is an activity in
+[0, 1], each edge a Hill function. All 24 are now on disk for all three cases and all
+three scenarios, which **supersedes caveat 4 above**.
+
+**Nodes by pathway**, in state-vector order:
+
+- **Notch** (7): JAG, DLL, NOTCH_receptors, NICD, MAML, RBPJ, HEY
+- **Wnt** (3): LRP, beta_catenin, TCF_LEF
+- **Mechanosensing** (1): YAP_TAZ
+- **TGFb** (5): TGFb_TypeI, TGFb_TypeII, TGFb_123, SMAD23, SMAD4
+- **BMP** (5): BMP_TypeI, BMP_TypeII, BMP_2456, SMAD67, SMAD158
+- **Outputs** (3): Snai1, Snai2, EndMT
+
+**Where the two physical inputs enter.** Each point hands the network two numbers:
+normalized shear and normalized mechanical stress.
+
+- **Shear** reaches six nodes directly: `JAG` rises with it and `DLL` falls
+  (`DLL = 1 - hill(shear)`), so shear sets the JAG/DLL balance; `NICD` gets a direct
+  0.35-weighted shear term; and a KLF2 term (`hill(shear)`) drives `beta_catenin`,
+  represses `BMP_2456` and raises `SMAD67`.
+- **Mechanical stress** reaches exactly one node directly: `YAP_TAZ`. Every mechanical
+  effect in this network is downstream of that one node, so a mechanical claim not
+  routed through YAP/TAZ is claiming something the model cannot do.
+- **Outputs**: `Snai1` and `Snai2` cross-repress; `EndMT = (hill(Snai1)+hill(Snai2))/2`
+  is a readout of those two with no dynamics of its own.
+- Five inputs are **fixed scalars, not fields**: VEGF 0.30, WNT 0.20, DKK 0.10,
+  Frizzled 0.50, Noggin_Chordin 0.05. Nothing in the FSG model varies them.
+
+**Parameters** (`networkpoint.Params`, unchanged in every shipped run): `n`=2, `ec50`=0.2, `ec50_input`=0.5, `Noggin_Chordin`=0.05, `VEGF`=0.3, `DKK`=0.1, `WNT`=0.2, `Frizzled`=0.5, `tau_signal`=0.1, `tau_tf`=1, `tau_output`=10.
+`ec50` governs internal edges and `ec50_input` the two physical drives; the three
+taus are hours, for the 10 fast signalling nodes, the 11 transcription factors, and
+the 3 outputs. The rest are fixed external ligand levels.
+
+Integrated to t = 400 h (LSODA, rtol 1e-8, atol 1e-10) = 40 output time
+constants, so every number below is a steady state, not a transient.
+
+**Normalization ceilings**: shear against 30 dyn/cm^2, mechanical
+stress against 100 Pa, both clipped to [0, 1]. Read with caveat 1:
+`ec50_input`=0.5 puts half-maximal drive at half the ceiling (15
+dyn/cm^2, 50 Pa), and every point above a ceiling is pinned at exactly
+the same activity as every other point above it.
+
+**Pinned by construction (7 of 24).** Identical at every
+grid point in every case, so they cannot explain any spatial or cross-case pattern:
+  MAML = 1, RBPJ = 0.3, LRP = 0.8, TCF_LEF = 1, TGFb_TypeII = 1, BMP_TypeI = 1, BMP_TypeII = 1.
+
+**Most spatially variable (17 nodes vary at all).** Standard deviation
+across grid points, combined scenario, averaged over the three cases:
+
+| node | spatial SD | mean, Underflow | mean, Healthy | mean, Overflow |
+|---|---|---|---|---|
+| YAP_TAZ | 0.1870 | 0.0241 | 0.4720 | 0.6246 |
+| SMAD67 | 0.1587 | 0.2266 | 0.2301 | 0.2354 |
+| DLL | 0.1401 | 0.9733 | 0.9685 | 0.9578 |
+| JAG | 0.1401 | 0.0267 | 0.0315 | 0.0422 |
+| EndMT | 0.0763 | 0.0715 | 0.3066 | 0.3773 |
+
+**Most flow-sensitive.** Spread of the domain-mean activity across the three inlet
+velocities (largest minus smallest), combined scenario. **n = 3**, so this ranks
+nodes; it does not establish a trend:
+
+| node | spread over cases | mean, Underflow | mean, Healthy | mean, Overflow |
+|---|---|---|---|---|
+| YAP_TAZ | 0.6005 | 0.0241 | 0.4720 | 0.6246 |
+| EndMT | 0.3059 | 0.0715 | 0.3066 | 0.3773 |
+| Snai1 | 0.2534 | 0.0153 | 0.2134 | 0.2687 |
+| JAG | 0.0155 | 0.0267 | 0.0315 | 0.0422 |
+| DLL | 0.0155 | 0.9733 | 0.9685 | 0.9578 |
+
+Full per-point arrays for **any** of the 24 nodes under **any** of the three
+scenarios are on disk at `data/grn_full/<case>/activities.csv` (columns
+`<Node>_<scenario>`) and can be requested through the harness. Nothing here is the
+only view of a node; these two rankings are a way in, not the whole story.
+
 ## 5. What you can test
 
 A claim is admissible only if it compiles into one of the harness primitives with a
@@ -149,13 +249,20 @@ any claim, including its own.
 Registered metrics usable in `compare_metric` and `metric_ordering`:
 
 - `arc_length_mm` (mm)
+- `beta_catenin_mean_combined` (dimensionless)
+- `bmp2456_mean_combined` (dimensionless)
 - `cushion_height_mm` (mm)
 - `endmt_mean_combined` (dimensionless)
 - `endmt_sd_combined` (dimensionless)
 - `grn_saturated_fraction` (dimensionless)
 - `growth_mean` (dimensionless)
 - `growth_pinned_low_fraction` (dimensionless)
+- `hey_mean_combined` (dimensionless)
 - `mech_clipped_fraction` (dimensionless)
+- `nicd_mean_combined` (dimensionless)
+- `smad23_mean_combined` (dimensionless)
+- `smad23_sd_combined` (dimensionless)
+- `smad67_mean_combined` (dimensionless)
 - `von_mises_lr_asymmetry` (dimensionless)
 - `von_mises_mean_pa` (Pa)
 - `von_mises_peak_pa` (Pa)
@@ -164,6 +271,7 @@ Registered metrics usable in `compare_metric` and `metric_ordering`:
 - `wss_mean_dyn_cm2` (dyn/cm^2)
 - `wss_peak_dyn_cm2` (dyn/cm^2)
 - `wss_peak_s` (dimensionless)
+- `yap_taz_mean_combined` (dimensionless)
 
 Full arrays are not in this briefing but are on disk and can be queried directly:
 11,615 solid nodes per case at the final step, 219-259 arc facets per case per step

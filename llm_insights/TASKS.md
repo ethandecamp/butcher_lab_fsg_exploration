@@ -1051,6 +1051,51 @@ Questions for Ethan or Dan that are not scoped to a single task. Add, don't dele
 
 ---
 
+### Added 2026-09-08 by Lane B (TASK-013 / TASK-014)
+
+- **The shipped GRN keeps five nodes and discards nineteen, not three and twenty-one.** For Dan:
+  `networkinput.py` sets `OUTPUT_NODES = ["Snai1", "Snai2", "EndMT"]`, but the shipped
+  `AHA GRN Plots/3scenarios_results/<case>/results_spatial.csv` actually carries **five** columns —
+  `Snai1`, `Snai2`, `EndMT`, **`NICD`, `YAP_TAZ`**. So **19** of the 24 solved nodes were discarded.
+  Three places in this repo say otherwise: TASK-013's Context section says 3-of-24 (21 discarded),
+  the morning report said 18, and the briefing's caveat 4 says "only 5 of 23 GRN nodes". None was
+  silently rewritten. Worth confirming with Dan whether the extra two columns are intentional or a
+  leftover, because it changes what "the model discards" means in every write-up.
+- **The 19 discarded nodes were the binding constraint on this whole project, not a nice-to-have.**
+  TASK-015 measured the reachable hypothesis space as **100% LOOKUP** — every surviving claim in the
+  demo run re-read a number already printed in the briefing — and the one genuinely COMPUTED claim
+  died because `SMAD23` was absent from the persisted output. `data/grn_full/` now carries all 24
+  nodes and `smad23_mean_combined` is a registered metric, so that specific claim is answerable for
+  the first time. This is the concrete reason TASK-013 mattered and is worth raising with Dan.
+- **The shipped runs pin the growth multiplier `g` at 0.5 while the current source default is 0.3**,
+  so the shipped results are not reproducible from `one_way_fsg_model/` as it stands. Already noted
+  in the briefing's caveat 7; Dan should confirm which value is intended. Not patched —
+  `one_way_fsg_model/` is read-only.
+- **`networkinput.py` hardcodes `/Users/sophiewang/...` and does work at import time.** That is why
+  `llm_insights/grn/runner.py` imports `networkpoint` only and reproduces the scenario wiring from
+  the outside, and why `tests/test_grn_runner.py::test_networkinput_is_never_imported` enforces it.
+  Report only; nothing in that folder was touched.
+- **A section module that also registers metrics is not safely re-importable.**
+  `summary/sections/grn.py` calls `register_metric` at import time, and `register_metric` rightly
+  raises on a duplicate name, so `importlib.reload` on it fails with
+  `RuntimeError: metric 'nicd_mean_combined' registered twice`. Not a defect — the duplicate guard is
+  one of the few things stopping an already-written hypothesis from being re-pointed at a different
+  computation. But anything that reloads section modules (only
+  `tests/test_registry.py::TestImportOrderIndependence` does today) must withdraw that module's
+  metrics first and restore them after.
+- **`build_system_prompt()` can offer the model a stale metric vocabulary if it is called before any
+  briefing is built.** The eight new GRN metrics register as an import side effect of
+  `summary/sections/grn.py`, and nothing in `agent/generator.py` imports `summary.sections`, so a
+  bare `build_system_prompt()` lists 16 metrics instead of 24. Both real CLI paths are safe
+  (`run.main` and `run._dry_run` both call `_load_briefing` first), so this is latent rather than
+  live. The clean fix is for the metric-vocabulary lookup to import `summary.sections` itself, which
+  touches files Lane B does not own — hence reported, not patched.
+- **The briefing's character budget is now effectively spent: 19,538 of 20,000, leaving 462.** The
+  GRN section took 6,876 of the 7,338 characters that were free. The next section anyone adds
+  breaches the ceiling unless something is cut, and TASK-018 is the next task likely to want prompt
+  space. A decision for Ethan: raise the ceiling, or start trimming (the per-metric provenance block
+  in section 1 is the largest compressible thing in there).
+
 ## Phase 2 and later
 
 TASK-011 onward live one-per-file in `TASKS/`. See `TASKS/README.md` for the phase order,
