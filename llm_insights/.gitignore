@@ -15,3 +15,7 @@ venv/
 .ruff_cache/
 *.egg-info/
 .DS_Store
+
+# Lane C measurement output: bake-off tables, canary results, reference reports.
+# Regenerable; the numbers that matter are pasted into TASKS/TASK-016.md.
+data/lane_c/

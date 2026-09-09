@@ -185,7 +185,98 @@ or written into the report — there are tests asserting all four.
 
 ---
 
-## 5b. Let it pick the questions (`agent.explore`)
+## 5b. Run it live on a local model — no key, no account, no network (`--generator local`)
+
+The fastest way to make this project portable. A local open-weights model costs nothing
+per call, needs no login, and — unlike the CLI backend — receives **exactly** the prompt
+this package built, with no agent wrapper around it. That makes it the cleanest
+instrument available here, which matters for any measured survival rate.
+
+### Set it up once
+
+```bash
+brew install ollama                       # or https://ollama.com/download
+OLLAMA_CONTEXT_LENGTH=32768 OLLAMA_FLASH_ATTENTION=1 OLLAMA_KV_CACHE_TYPE=q8_0 ollama serve
+ollama pull llama3.1:8b
+```
+
+**The `OLLAMA_CONTEXT_LENGTH` is not optional, and this is the one thing to get right.**
+Ollama derives a default context from available memory, and on a 16 GB machine that
+default has been as low as **4096 tokens**. The assembled prompt is around **6,300
+tokens** on `llama3.1:8b` and **7,300** on `qwen3:8b` (measured 2026-09-08). A prompt
+that does not fit is **not rejected — it is silently truncated**, and the model then
+answers about a briefing whose end it never saw. The claims still look plausible. There
+is no way to tell from the output.
+
+This package refuses to send such a prompt: `LocalGenerator` reads the length the server
+reports (Ollama's `/api/ps`, llama.cpp's `/props`) and raises before the request goes
+out, naming the fix. Confirm the server is configured with:
+
+```bash
+curl -s http://127.0.0.1:11434/api/ps
+# ... "context_length":32768 ...
+```
+
+`/api/ps` reports only models it has *loaded*, so a freshly started server shows an
+empty list until something warms it up. The tool does that warm-up itself.
+
+### Configure it — environment variables only
+
+There is no credential here, and nothing in this package ever asks for one.
+
+```bash
+export LLM_INSIGHTS_LOCAL_URL="http://127.0.0.1:11434"
+export LLM_INSIGHTS_LOCAL_MODEL="llama3.1:8b"
+```
+
+A third variable, `LLM_INSIGHTS_LOCAL_CONTEXT`, overrides the context length for a
+server that cannot report one. Set it only if you must: a wrong value here re-enables
+exactly the silent truncation the check exists to prevent.
+
+### Run it
+
+```bash
+PYTHONPATH=src python3 -m llm_insights.agent.run --generator local \
+  --question "What differs between the healthy and overflow cases, and why?" \
+  --out data/live
+```
+
+Any OpenAI-compatible server works — `llama.cpp --server` as well as Ollama — because
+this backend speaks `POST /v1/chat/completions` and nothing vendor-specific.
+
+### Which model? Run the bake-off rather than guessing
+
+The only question that matters is how much of what a model returns survives the strict
+validator. `agent/bakeoff.py` measures it: N proposal calls per model, then the
+rejection rate, the usable yield, latency, tokens, and why each rejected claim was
+rejected.
+
+```bash
+PYTHONPATH=src python3 -m llm_insights.agent.bakeoff \
+  --models llama3.1:8b qwen3:8b --rounds 5 --n 5 --max-tokens 4096
+```
+
+The measured table for the current default is in `TASKS/TASK-016.md`. **Read it before
+trusting a local run** — it is not flattering, and a local backend's failure mode is
+different in kind from a frontier model's.
+
+There is also a truncation check, which is the thing to run first on a new machine or a
+new model. It appends a random passphrase to the very end of the real briefing and
+requires the model to quote it back:
+
+```bash
+PYTHONPATH=src python3 -m llm_insights.agent.bakeoff --canary --models llama3.1:8b
+```
+
+`CANARY: PASS` means the whole prompt arrived. `CANARY: FAIL` means it did not, and no
+number from that server means anything until you fix the context length.
+
+**Do not pull anything above 14B on a 16 GB machine.** An 8B model at 4-bit is about
+5 GB; a 14B is about 8.5 GB and leaves little room beside a loaded dataset.
+
+---
+
+## 5c. Let it pick the questions (`agent.explore`)
 
 Everything above starts from a question you typed. This one does not: it proposes its own
 questions from the schema, tests them through the same `Study.ask` path, and reports the survival
@@ -298,11 +389,11 @@ swapping them safe, and it is why adding a keyless backend changed no verificati
 ## 8. Every flag
 
 ```
---generator {claude-cli,anthropic,transcript,paste,echo}
+--generator {claude-cli,anthropic,local,transcript,paste,echo}
                                           backend (default: claude-cli)
 --question TEXT                           the question to investigate
 --n INT                                   how many hypotheses to ask for (default 5)
---model TEXT                              model id (claude-cli and anthropic)
+--model TEXT                              model id (claude-cli, anthropic, local)
 --out DIR                                 where cards and report go (default: data/)
 --dry-run                                 print the prompt and its size; call nothing
 

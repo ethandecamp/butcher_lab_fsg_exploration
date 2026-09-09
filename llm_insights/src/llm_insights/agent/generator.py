@@ -1013,7 +1013,14 @@ class EchoGenerator:
 
 
 #: Every backend name the CLI accepts, in the order they are documented.
-GENERATOR_KINDS: Final[tuple[str, ...]] = ("claude-cli", "anthropic", "transcript", "paste", "echo")
+GENERATOR_KINDS: Final[tuple[str, ...]] = (
+    "claude-cli",
+    "anthropic",
+    "local",
+    "transcript",
+    "paste",
+    "echo",
+)
 
 
 def make_generator(
@@ -1071,6 +1078,10 @@ def make_generator(
         return PasteGenerator(workdir=paste_dir or "data/paste")
     if kind == "anthropic":
         return AnthropicGenerator(model=model or DEFAULT_MODEL)
+    if kind == "local":
+        from llm_insights.agent.local import LocalGenerator
+
+        return LocalGenerator(model=model)
     if kind == "transcript":
         if transcript is None:
             raise ValueError("--generator transcript requires --transcript PATH")
