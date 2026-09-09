@@ -64,6 +64,7 @@ from pathlib import Path
 from typing import Any, Final, NamedTuple
 
 from llm_insights.cards.card import Card, cards_to_json
+from llm_insights.cards.render import verdict_of
 from llm_insights.harness import primitives as _primitives
 from llm_insights.io.dataset import (
     CASE_BY_CONDITION,
@@ -1867,12 +1868,84 @@ def _pct(value: float | None) -> str:
     return "—" if value is None else f"{100.0 * value:.1f}%"
 
 
+def _mechanical_line(card: Card) -> str:
+    """Describe the test that actually ran, in the harness's own words.
+
+    Deliberately not re-derived from ``primitive`` and ``params``: a second rendering
+    of the same thing is a second thing to drift out of step with the first. The card's
+    ``summary`` is what the harness said about the test it ran, and ``error`` is what it
+    said when the primitive could not run at all.
+
+    Args:
+        card: The card to describe.
+
+    Returns:
+        The card's own wording with whitespace collapsed, so that it survives being
+        placed in a Markdown list item, or a placeholder when the card carries neither.
+    """
+    text = card.error if card.error is not None else card.summary
+    return " ".join((text or "").split()) or "(the card recorded no description)"
+
+
+def _per_claim_section(result: ExplorationResult) -> list[str]:
+    """Render every claim beside the mechanical description of its own test.
+
+    The ranked table prints only a claim's English, which is what the model asserted,
+    not what the code did. Those can disagree -- a claim about mechanical stress whose
+    test correlated two GRN nodes is still judged by arithmetic, but the arithmetic is
+    not about the sentence. Nothing here checks the two against each other; printing
+    them together is what lets a reader see it for themselves.
+
+    Every card appears, survivors and not, in the order the questions produced them.
+    This section also carries the classification of each claim, which is why there is no
+    separate list of those.
+
+    Args:
+        result: The finished exploration.
+
+    Returns:
+        The Markdown lines of the section.
+    """
+    lines = [
+        "",
+        "## Every claim, beside the test that ran",
+        "",
+        "The claim is the English the model wrote before anything ran. The line under "
+        "it is the harness's own description of what executed, copied off the card "
+        "rather than re-described here. Nothing in this pipeline checks that the two "
+        "are about the same quantities: where they disagree the verdict is still "
+        "arithmetic, it is just not evidence for the sentence above it. Read both.",
+        "",
+        "Claims that could not run are listed too, with the error in place of the test "
+        "description.",
+        "",
+    ]
+    for card in result.cards:
+        classification = result.classifications.get(card.id)
+        label = classification.label if classification else "unclassified"
+        reason = classification.reason if classification else "no classification was recorded"
+        detail = "could not run" if card.error is not None else "test that ran"
+        lines += [
+            f"### {card.id} — {verdict_of(card).label} · {label}",
+            "",
+            f"- **claim:** {card.claim}",
+            f"- **{detail}:** {_mechanical_line(card)}",
+            f"- **classified {label}:** {reason}",
+            "",
+        ]
+    return lines
+
+
 def build_exploration_report(result: ExplorationResult) -> str:
     """Render the exploration report as Markdown.
 
     The stratified survival table comes before the findings on purpose. A reader who
     sees "12 of 13 survived" and stops has been misled; a reader who sees that eleven of
     the twelve were LOOKUP has the actual result of the run.
+
+    The per-claim section at the end prints each claim's English and the harness's own
+    description of the test that ran, for the same reason: a reader who sees only the
+    prose cannot tell whether the verdict is about the sentence they just read.
 
     Args:
         result: The finished exploration.
@@ -1965,10 +2038,7 @@ def build_exploration_report(result: ExplorationResult) -> str:
     else:
         lines.append("| — | — | — | — | — | — | — | nothing survived |")
 
-    lines += ["", "## How each claim was classified", ""]
-    for card_id, classification in sorted(result.classifications.items()):
-        lines.append(f"- **{card_id}** — {classification.label}: {classification.reason}")
-    lines.append("")
+    lines += _per_claim_section(result)
     return "\n".join(lines)
 
 
