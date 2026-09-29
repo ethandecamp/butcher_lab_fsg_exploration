@@ -1,0 +1,55 @@
+{
+  "source": "Questions For Ethan and Claude -- question/answer pairs from Daniel Pearce (dpp48@cornell.edu), received 2026-09-29. Dan's answers are expert expectations, several explicitly hedged; they are the reference column, not an answer key.",
+  "items": [
+    {
+      "number": 1,
+      "question": "Where in the cushion do distinct patterns of compaction and expansion/elongation emerge?",
+      "dan": "atrial - more compaction; ventricular - expansion"
+    },
+    {
+      "number": 2,
+      "question": "At what point in the simulation do the Underflow, Healthy, and Overflow geometries diverge in terms of geometry and growth trajectory?",
+      "dan": "probably a few iterations in - could check gif to determine specific point"
+    },
+    {
+      "number": 3,
+      "question": "Which mechanical stimuli or trends are most strongly associated with regions of compaction? Expansion/elongation?",
+      "dan": "compaction - high P, WSS; expansion - low P, WSS (more OSS in transient model, not here)"
+    },
+    {
+      "number": 4,
+      "question": "What early mechanical patterns or trends are most predictive of future growth patterns?",
+      "dan": "would guess pressure/WSS asymmetry, which grows over time"
+    },
+    {
+      "number": 5,
+      "question": "What spatially or temporally targeted change in mechanical loading would be expected to shift the Underflow phenotype towards the Healthy phenotype?",
+      "dan": "flow rate increase - additional pressure/WSS asymmetry"
+    },
+    {
+      "number": 6,
+      "question": "How does tissue stress (von Mises stress) heterogeneity compare between different model runs?",
+      "dan": "underflow - lower; overflow - higher (regions of concentration?)"
+    },
+    {
+      "number": 7,
+      "question": "Are particular combinations of WSS, tissue stress, and growth more predictive of final phenotype than individual fields?",
+      "dan": "obvious answer is yes - can we find specific combinations?"
+    },
+    {
+      "number": 8,
+      "question": "Which regions of the tissue, if any, are stable, or unaffected, by input flow rate conditions?",
+      "dan": "potentially middle region"
+    },
+    {
+      "number": 9,
+      "question": "Is there a spatial pattern or function of mechanical fields that uniquely distinguish each individual phenotype before gross morphological differences become apparent?",
+      "dan": "again, asymmetry or atrial/ventricular bias would be my guess here"
+    },
+    {
+      "number": 10,
+      "question": "Can you identify a minimal spatial mechanical signature that predicts which developmental trajectory a tissue will follow after the first 2 - 4 iterations?",
+      "dan": null
+    }
+  ]
+}
