@@ -1,0 +1,35 @@
+{
+ "full": "/sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/data/full/full_g_00071_k0.npz",
+ "Re": 0.3821683132744448,
+ "steps": 3000,
+ "train_s": 106.31708534101199,
+ "final": {
+  "step": 3000,
+  "train_s": 106.31320396600495,
+  "sec_per_step": 0.037007447351992594,
+  "loss_pde": 0.01171453483402729,
+  "loss_out": 3.863473921228433e-06,
+  "lambda_pde": 1.0,
+  "lambda_out": 42.4894901811641,
+  "tau_rel_l2": 1.0019472414592479,
+  "p_rel_l2": 0.45068792076364744,
+  "peak_loc_err": 0.003920908399414669,
+  "sign_agree": 0.2918454935622318
+ },
+ "model_config": {
+  "n_outline": 256,
+  "enc_width": 128,
+  "latent": 32,
+  "n_fourier": 32,
+  "fourier_sigma": 2.0,
+  "width": 96,
+  "depth": 5,
+  "delta": 0.05,
+  "s_u": 8.0,
+  "s_v": 3.0,
+  "s_p": 200.0,
+  "wall_offset": 0.0001,
+  "seed": 0
+ },
+ "sec_per_step": 0.035439028447003994
+}

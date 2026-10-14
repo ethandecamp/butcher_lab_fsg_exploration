@@ -1,0 +1,96 @@
+2026-10-14 15:35:58,840 loaded /sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/data/packed_v1.npz: 960 solves
+2026-10-14 15:35:58,924 data: 640 train solves, loss scales u/v/p = 0.656/0.197/237.9 (0.4 s)
+2026-10-14 15:35:58,929 model: 133443 trainable parameters
+/sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/src/pinn_surrogate/train.py:259: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+  **{f"loss_{n}": float(v) for n, v in losses.items()},
+2026-10-14 15:36:03,309 step    50  loss 4.312  data 3.4 (x1)  pde 0.769 (x0.9)  out 0.244 (x0.9)  0.081 s/step
+2026-10-14 15:36:07,356 step   100  loss 6.525  data 5.49 (x1)  pde 1 (x0.86)  out 0.127 (x1.33)  0.081 s/step
+2026-10-14 15:36:11,115 step   150  loss 3.378  data 2.84 (x1)  pde 0.597 (x0.86)  out 0.0153 (x1.33)  0.075 s/step
+2026-10-14 15:36:15,012 step   200  loss 3.466  data 2.91 (x1)  pde 0.487 (x1.08)  out 0.0209 (x1.57)  0.078 s/step
+2026-10-14 15:36:18,814 step   250  loss 2.199  data 1.72 (x1)  pde 0.402 (x1.08)  out 0.0283 (x1.57)  0.075 s/step
+2026-10-14 15:36:22,652 step   300  loss 5.099  data 4.62 (x1)  pde 0.385 (x1.09)  out 0.0352 (x1.72)  0.077 s/step
+2026-10-14 15:36:26,264 step   350  loss 2.195  data 1.77 (x1)  pde 0.368 (x1.09)  out 0.0128 (x1.72)  0.072 s/step
+2026-10-14 15:36:29,928 step   400  loss 2.281  data 1.82 (x1)  pde 0.412 (x1.04)  out 0.0141 (x2.21)  0.073 s/step
+2026-10-14 15:36:33,912 step   450  loss 3.094  data 2.77 (x1)  pde 0.3 (x1.04)  out 0.00602 (x2.21)  0.079 s/step
+2026-10-14 15:36:38,101 step   500  loss 2.952  data 2.59 (x1)  pde 0.273 (x1.24)  out 0.00894 (x2.46)  0.083 s/step
+2026-10-14 15:37:59,860 loaded /sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/data/packed_v1.npz: 960 solves
+2026-10-14 15:37:59,965 data: 640 train solves, loss scales u/v/p = 0.656/0.197/237.9 (0.4 s)
+2026-10-14 15:37:59,971 model: 133443 trainable parameters
+2026-10-14 15:38:00,299 resumed runs/pilot_n160_on/checkpoint.pt at step 400 (31 s trained before)
+/sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/src/pinn_surrogate/train.py:259: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+  **{f"loss_{n}": float(v) for n, v in losses.items()},
+2026-10-14 15:38:04,048 step   450  loss 3.094  data 2.77 (x1)  pde 0.3 (x1.04)  out 0.00602 (x2.21)  0.075 s/step
+2026-10-14 15:38:48,736 loaded /sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/data/packed_v1.npz: 960 solves
+2026-10-14 15:38:48,814 data: 640 train solves, loss scales u/v/p = 0.656/0.197/237.9 (0.3 s)
+2026-10-14 15:38:48,821 model: 133443 trainable parameters
+2026-10-14 15:38:49,121 resumed runs/pilot_n160_on/checkpoint.pt at step 400 (31 s trained before)
+/sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/src/pinn_surrogate/train.py:259: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+  **{f"loss_{n}": float(v) for n, v in losses.items()},
+2026-10-14 15:38:52,759 step   450  loss 3.094  data 2.77 (x1)  pde 0.3 (x1.04)  out 0.00602 (x2.21)  0.073 s/step
+2026-10-14 15:38:56,584 step   500  loss 2.952  data 2.59 (x1)  pde 0.273 (x1.24)  out 0.00894 (x2.46)  0.075 s/step
+2026-10-14 15:39:00,207 step   550  loss 3.53  data 3.17 (x1)  pde 0.288 (x1.24)  out 0.00232 (x2.46)  0.072 s/step
+2026-10-14 15:39:03,825 step   600  loss 5.08  data 4.7 (x1)  pde 0.307 (x1.19)  out 0.00568 (x2.58)  0.072 s/step
+2026-10-14 15:39:07,610 step   650  loss 5.122  data 4.85 (x1)  pde 0.213 (x1.19)  out 0.00539 (x2.58)  0.075 s/step
+2026-10-14 15:39:11,391 step   700  loss 4.751  data 4.45 (x1)  pde 0.243 (x1.13)  out 0.00718 (x3.02)  0.076 s/step
+2026-10-14 15:39:15,093 step   750  loss 3.751  data 3.5 (x1)  pde 0.214 (x1.13)  out 0.00257 (x3.02)  0.073 s/step
+2026-10-14 15:39:18,848 step   800  loss 4.208  data 3.92 (x1)  pde 0.26 (x1.09)  out 0.00218 (x3.5)  0.075 s/step
+2026-10-14 15:39:22,529 step   850  loss 4.961  data 4.73 (x1)  pde 0.206 (x1.09)  out 0.00262 (x3.5)  0.073 s/step
+2026-10-14 15:39:26,312 step   900  loss 2.43  data 2.17 (x1)  pde 0.24 (x1.06)  out 0.00217 (x3.87)  0.076 s/step
+2026-10-14 15:39:30,075 step   950  loss 3.147  data 2.79 (x1)  pde 0.332 (x1.06)  out 0.00188 (x3.87)  0.074 s/step
+2026-10-14 15:39:33,829 step  1000  loss 1.866  data 1.6 (x1)  pde 0.246 (x1.07)  out 0.0017 (x4.04)  0.074 s/step
+2026-10-14 15:39:37,541 step  1050  loss 4.947  data 4.41 (x1)  pde 0.488 (x1.07)  out 0.00327 (x4.04)  0.073 s/step
+2026-10-14 15:39:41,239 step  1100  loss 2.862  data 2.57 (x1)  pde 0.287 (x0.989)  out 0.00268 (x4.23)  0.074 s/step
+2026-10-14 15:39:44,953 step  1150  loss 2.705  data 2.47 (x1)  pde 0.224 (x0.989)  out 0.00405 (x4.23)  0.074 s/step
+2026-10-14 15:39:48,641 step  1200  loss 2.478  data 2.28 (x1)  pde 0.183 (x1)  out 0.00333 (x4.42)  0.074 s/step
+2026-10-14 15:39:52,322 step  1250  loss 2.77  data 2.54 (x1)  pde 0.22 (x1)  out 0.00213 (x4.42)  0.073 s/step
+2026-10-14 15:39:56,172 step  1300  loss 2.009  data 1.67 (x1)  pde 0.353 (x0.926)  out 0.0029 (x4.77)  0.077 s/step
+2026-10-14 15:39:59,991 step  1350  loss 1.563  data 1.32 (x1)  pde 0.244 (x0.926)  out 0.00371 (x4.77)  0.075 s/step
+2026-10-14 15:40:03,727 step  1400  loss 1.808  data 1.48 (x1)  pde 0.354 (x0.872)  out 0.00381 (x4.48)  0.075 s/step
+2026-10-14 15:40:07,571 step  1450  loss 2.425  data 2.16 (x1)  pde 0.298 (x0.872)  out 0.00152 (x4.48)  0.076 s/step
+2026-10-14 15:40:11,362 step  1500  loss 2.887  data 2.66 (x1)  pde 0.237 (x0.929)  out 0.00173 (x4.49)  0.075 s/step
+2026-10-14 15:40:15,204 step  1550  loss 1.657  data 1.45 (x1)  pde 0.216 (x0.929)  out 0.00113 (x4.49)  0.076 s/step
+2026-10-14 15:40:20,502 step  1600  loss 1.638  data 1.46 (x1)  pde 0.193 (x0.889)  out 0.00151 (x4.51)  0.106 s/step
+2026-10-14 15:40:24,847 step  1650  loss 3.303  data 2.97 (x1)  pde 0.358 (x0.889)  out 0.00236 (x4.51)  0.086 s/step
+2026-10-14 15:40:29,268 step  1700  loss 3.512  data 3.14 (x1)  pde 0.414 (x0.866)  out 0.00344 (x4.65)  0.088 s/step
+2026-10-14 15:40:33,268 step  1750  loss 2.307  data 2 (x1)  pde 0.35 (x0.866)  out 0.00169 (x4.65)  0.079 s/step
+2026-10-14 15:40:37,327 step  1800  loss 2.147  data 1.85 (x1)  pde 0.316 (x0.844)  out 0.00693 (x4.35)  0.081 s/step
+2026-10-14 15:40:41,283 step  1850  loss 2.283  data 2.08 (x1)  pde 0.224 (x0.844)  out 0.00213 (x4.35)  0.078 s/step
+2026-10-14 15:40:45,518 step  1900  loss 1.984  data 1.71 (x1)  pde 0.303 (x0.87)  out 0.00209 (x4.35)  0.085 s/step
+2026-10-14 15:40:50,036 step  1950  loss 3.916  data 3.67 (x1)  pde 0.265 (x0.87)  out 0.00443 (x4.35)  0.089 s/step
+2026-10-14 15:40:53,851 step  2000  loss 2.413  data 2.12 (x1)  pde 0.327 (x0.837)  out 0.00318 (x4.93)  0.075 s/step
+2026-10-14 15:40:57,595 step  2050  loss 1.072  data 0.902 (x1)  pde 0.195 (x0.837)  out 0.00129 (x4.93)  0.074 s/step
+2026-10-14 15:41:01,624 step  2100  loss 1.577  data 1.32 (x1)  pde 0.291 (x0.844)  out 0.00224 (x4.72)  0.081 s/step
+2026-10-14 15:41:05,972 step  2150  loss 0.84  data 0.629 (x1)  pde 0.241 (x0.844)  out 0.00156 (x4.72)  0.086 s/step
+2026-10-14 15:41:10,174 step  2200  loss 3.273  data 3.04 (x1)  pde 0.253 (x0.869)  out 0.00387 (x4.45)  0.084 s/step
+2026-10-14 15:41:14,268 step  2250  loss 5.977  data 5.7 (x1)  pde 0.309 (x0.869)  out 0.00218 (x4.45)  0.081 s/step
+2026-10-14 15:41:18,296 step  2300  loss 1.2  data 0.989 (x1)  pde 0.233 (x0.883)  out 0.000944 (x5.23)  0.081 s/step
+2026-10-14 15:41:22,205 step  2350  loss 3.137  data 2.88 (x1)  pde 0.274 (x0.883)  out 0.00236 (x5.23)  0.077 s/step
+2026-10-14 15:41:26,200 step  2400  loss 6.551  data 6.34 (x1)  pde 0.202 (x0.954)  out 0.00217 (x6.33)  0.080 s/step
+2026-10-14 15:41:30,530 step  2450  loss 2.175  data 1.76 (x1)  pde 0.426 (x0.954)  out 0.00154 (x6.33)  0.086 s/step
+2026-10-14 15:41:34,338 step  2500  loss 3.119  data 2.91 (x1)  pde 0.192 (x1.04)  out 0.00204 (x6.04)  0.075 s/step
+2026-10-14 15:41:42,549 loaded /sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/data/packed_v1.npz: 960 solves
+2026-10-14 15:41:42,630 data: 640 train solves, loss scales u/v/p = 0.656/0.197/237.9 (0.4 s)
+2026-10-14 15:41:42,636 model: 133443 trainable parameters
+2026-10-14 15:41:42,957 resumed runs/pilot_n160_on/checkpoint.pt at step 2500 (195 s trained before)
+/sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/src/pinn_surrogate/train.py:259: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+  **{f"loss_{n}": float(v) for n, v in losses.items()},
+2026-10-14 15:41:47,471 step  2550  loss 1.548  data 1.35 (x1)  pde 0.185 (x1.04)  out 0.000917 (x6.04)  0.090 s/step
+2026-10-14 15:41:51,487 step  2600  loss 3.659  data 3.41 (x1)  pde 0.239 (x0.996)  out 0.0012 (x6.05)  0.080 s/step
+2026-10-14 15:41:55,550 step  2650  loss 3.39  data 3.11 (x1)  pde 0.273 (x0.996)  out 0.0014 (x6.05)  0.080 s/step
+2026-10-14 15:41:59,582 step  2700  loss 5.878  data 5.57 (x1)  pde 0.295 (x1)  out 0.00244 (x7.14)  0.081 s/step
+2026-10-14 15:42:03,575 step  2750  loss 5.115  data 4.49 (x1)  pde 0.61 (x1)  out 0.00159 (x7.14)  0.079 s/step
+2026-10-14 15:42:07,550 step  2800  loss 1.495  data 1.29 (x1)  pde 0.19 (x1.04)  out 0.00144 (x7.37)  0.079 s/step
+2026-10-14 15:42:11,492 step  2850  loss 2.03  data 1.12 (x1)  pde 0.868 (x1.04)  out 0.00146 (x7.37)  0.078 s/step
+2026-10-14 15:42:15,432 step  2900  loss 2.192  data 1.95 (x1)  pde 0.212 (x1.08)  out 0.000932 (x8.64)  0.079 s/step
+2026-10-14 15:42:19,446 step  2950  loss 5.51  data 5.26 (x1)  pde 0.215 (x1.08)  out 0.00203 (x8.64)  0.079 s/step
+2026-10-14 15:42:23,517 step  3000  loss 2.932  data 2.57 (x1)  pde 0.337 (x1.04)  out 0.00129 (x8.81)  0.080 s/step
+2026-10-14 15:42:23,578 trained 3000 steps: 235 s optimizing (0.078 s/step), 3 session(s)
+2026-10-14 15:42:29,672 evaluated val: 160 solves in 6.1 s
+2026-10-14 15:42:35,690 evaluated test_B: 160 solves in 6.0 s
+2026-10-14 15:42:36,303 val    median: tau 0.9644  p 0.3516  peak 0.1216  sign 0.981  pde 0.334  infer 3.1 ms
+2026-10-14 15:42:36,303 test_B median: tau 0.9622  p 0.1869  peak 0.1667  sign 0.994  pde 0.303  infer 3.1 ms
+2026-10-14 15:42:36,303 wrote runs/pilot_n160_on/eval.json and wall_tau_test_B.png, error_vs_re.png

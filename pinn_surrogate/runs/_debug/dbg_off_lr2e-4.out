@@ -1,0 +1,27 @@
+2026-10-14 15:43:20,894 loaded /sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/data/packed_v1.npz: 960 solves
+2026-10-14 15:43:20,925 data: 80 train solves, loss scales u/v/p = 0.656/0.197/237.9 (0.3 s)
+2026-10-14 15:43:20,927 model: 133443 trainable parameters
+/sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/src/pinn_surrogate/train.py:259: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+  **{f"loss_{n}": float(v) for n, v in losses.items()},
+2026-10-14 15:43:24,190 step   100  loss 2.079  data 2.08 (x1)  0.029 s/step
+2026-10-14 15:43:27,068 step   200  loss 0.8003  data 0.8 (x1)  0.029 s/step
+2026-10-14 15:43:29,937 step   300  loss 1.034  data 1.03 (x1)  0.028 s/step
+2026-10-14 15:43:32,927 step   400  loss 0.8105  data 0.81 (x1)  0.030 s/step
+2026-10-14 15:43:36,008 step   500  loss 0.6903  data 0.69 (x1)  0.029 s/step
+2026-10-14 15:43:38,992 step   600  loss 0.6773  data 0.677 (x1)  0.030 s/step
+2026-10-14 15:43:41,983 step   700  loss 0.5851  data 0.585 (x1)  0.029 s/step
+2026-10-14 15:43:45,102 step   800  loss 0.2711  data 0.271 (x1)  0.031 s/step
+2026-10-14 15:43:48,071 step   900  loss 0.4071  data 0.407 (x1)  0.029 s/step
+2026-10-14 15:43:51,158 step  1000  loss 0.4449  data 0.445 (x1)  0.029 s/step
+2026-10-14 15:43:54,160 step  1100  loss 0.418  data 0.418 (x1)  0.029 s/step
+2026-10-14 15:43:57,087 step  1200  loss 0.3758  data 0.376 (x1)  0.029 s/step
+2026-10-14 15:44:00,091 step  1300  loss 0.3469  data 0.347 (x1)  0.029 s/step
+2026-10-14 15:44:03,044 step  1400  loss 0.3423  data 0.342 (x1)  0.030 s/step
+2026-10-14 15:44:06,429 step  1500  loss 0.3619  data 0.362 (x1)  0.031 s/step
+2026-10-14 15:44:06,502 trained 1500 steps: 44 s optimizing (0.029 s/step), 1 session(s)
+2026-10-14 15:44:07,476 evaluated val: 8 solves in 1.0 s
+2026-10-14 15:44:08,328 evaluated test_B: 8 solves in 0.9 s
+2026-10-14 15:44:09,229 val    median: tau 0.2578  p 0.2564  peak 0.0588  sign 1.000  pde 8.35  infer 14.8 ms
+2026-10-14 15:44:09,230 test_B median: tau 0.3975  p 0.1293  peak 0.0294  sign 1.000  pde 9.1  infer 15.6 ms
+2026-10-14 15:44:09,230 wrote runs/dbg_off_lr2e-4/eval.json and wall_tau_test_B.png, error_vs_re.png

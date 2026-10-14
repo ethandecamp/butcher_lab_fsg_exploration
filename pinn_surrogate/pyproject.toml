@@ -1,0 +1,17 @@
+[project]
+name = "pinn-surrogate"
+version = "0.1.0"
+description = "Physics-informed surrogate for the AV-cushion steady fluid model"
+requires-python = ">=3.10"
+dependencies = ["numpy", "torch", "matplotlib"]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.format]
+# pack.py predates this config and must stay byte-identical (it produced data/); don't reformat it.
+exclude = ["src/pinn_surrogate/pack.py"]

@@ -1,0 +1,125 @@
+2026-10-14 16:21:37,158 loaded /sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/data/packed_v1.npz: 960 solves
+2026-10-14 16:21:37,239 data: 320 train solves, loss scales u/v/p = 0.656/0.197/237.9 (0.4 s)
+2026-10-14 16:21:37,242 model: 133443 trainable parameters
+/sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/src/pinn_surrogate/train.py:264: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+  **{f"loss_{n}": float(v) for n, v in losses.items()},
+2026-10-14 16:21:57,228 step   100  loss 1.253  data 1.16 (x1)  pde 65.8 (x0.001)  out 0.441 (x0.0543)  0.197 s/step
+2026-10-14 16:22:17,261 step   200  loss 3.245  data 2.88 (x1)  pde 326 (x0.001)  out 0.731 (x0.0506)  0.199 s/step
+2026-10-14 16:22:36,017 step   300  loss 2.522  data 1.36 (x1)  pde 1.15e+03 (x0.001)  out 0.235 (x0.0485)  0.187 s/step
+2026-10-14 16:22:54,790 loaded /sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/data/packed_v1.npz: 960 solves
+2026-10-14 16:22:54,917 data: 320 train solves, loss scales u/v/p = 0.656/0.197/237.9 (0.5 s)
+2026-10-14 16:22:54,934 model: 133443 trainable parameters
+2026-10-14 16:22:55,406 resumed runs/grid/n80_physon_s1/checkpoint.pt at step 300 (58 s trained before)
+/sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/src/pinn_surrogate/train.py:264: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+  **{f"loss_{n}": float(v) for n, v in losses.items()},
+2026-10-14 16:23:22,089 step   400  loss 0.7119  data 0.623 (x1)  pde 72.4 (x0.001)  out 0.371 (x0.0448)  0.267 s/step
+2026-10-14 16:23:48,944 step   500  loss 0.6055  data 0.47 (x1)  pde 125 (x0.001)  out 0.248 (x0.0432)  0.264 s/step
+2026-10-14 16:24:13,814 loaded /sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/data/packed_v1.npz: 960 solves
+2026-10-14 16:24:13,988 data: 320 train solves, loss scales u/v/p = 0.656/0.197/237.9 (0.6 s)
+2026-10-14 16:24:13,995 model: 133443 trainable parameters
+2026-10-14 16:24:14,480 resumed runs/grid/n80_physon_s1/checkpoint.pt at step 500 (111 s trained before)
+/sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/src/pinn_surrogate/train.py:264: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+  **{f"loss_{n}": float(v) for n, v in losses.items()},
+2026-10-14 16:24:41,121 step   600  loss 0.1242  data 0.109 (x1)  pde 4.28 (x0.00102)  out 0.261 (x0.0397)  0.266 s/step
+2026-10-14 16:25:07,096 step   700  loss 0.4473  data 0.41 (x1)  pde 24.6 (x0.00102)  out 0.258 (x0.0466)  0.259 s/step
+2026-10-14 16:25:33,928 loaded /sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/data/packed_v1.npz: 960 solves
+2026-10-14 16:25:34,161 data: 320 train solves, loss scales u/v/p = 0.656/0.197/237.9 (0.6 s)
+2026-10-14 16:25:34,166 model: 133443 trainable parameters
+2026-10-14 16:25:34,708 resumed runs/grid/n80_physon_s1/checkpoint.pt at step 700 (164 s trained before)
+/sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/src/pinn_surrogate/train.py:264: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+  **{f"loss_{n}": float(v) for n, v in losses.items()},
+2026-10-14 16:26:00,111 step   800  loss 0.7076  data 0.65 (x1)  pde 44 (x0.001)  out 0.259 (x0.0528)  0.254 s/step
+2026-10-14 16:26:25,491 step   900  loss 0.5308  data 0.438 (x1)  pde 81.9 (x0.001)  out 0.211 (x0.0536)  0.253 s/step
+2026-10-14 16:26:52,292 loaded /sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/data/packed_v1.npz: 960 solves
+2026-10-14 16:26:52,426 data: 320 train solves, loss scales u/v/p = 0.656/0.197/237.9 (0.5 s)
+2026-10-14 16:26:52,431 model: 133443 trainable parameters
+2026-10-14 16:26:52,956 resumed runs/grid/n80_physon_s1/checkpoint.pt at step 900 (215 s trained before)
+/sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/src/pinn_surrogate/train.py:264: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+  **{f"loss_{n}": float(v) for n, v in losses.items()},
+2026-10-14 16:27:20,271 step  1000  loss 0.2532  data 0.205 (x1)  pde 37.1 (x0.001)  out 0.215 (x0.0515)  0.270 s/step
+2026-10-14 16:27:48,088 step  1100  loss 0.5927  data 0.54 (x1)  pde 35.5 (x0.00102)  out 0.242 (x0.0691)  0.278 s/step
+2026-10-14 16:28:10,514 loaded /sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/data/packed_v1.npz: 960 solves
+2026-10-14 16:28:10,679 data: 320 train solves, loss scales u/v/p = 0.656/0.197/237.9 (0.6 s)
+2026-10-14 16:28:10,686 model: 133443 trainable parameters
+2026-10-14 16:28:11,255 resumed runs/grid/n80_physon_s1/checkpoint.pt at step 1100 (269 s trained before)
+/sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/src/pinn_surrogate/train.py:264: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+  **{f"loss_{n}": float(v) for n, v in losses.items()},
+2026-10-14 16:28:36,615 step  1200  loss 0.2384  data 0.197 (x1)  pde 27.7 (x0.001)  out 0.217 (x0.0653)  0.254 s/step
+2026-10-14 16:29:02,623 step  1300  loss 0.2131  data 0.17 (x1)  pde 31.1 (x0.001)  out 0.196 (x0.0633)  0.259 s/step
+2026-10-14 16:29:29,082 loaded /sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/data/packed_v1.npz: 960 solves
+2026-10-14 16:29:29,230 data: 320 train solves, loss scales u/v/p = 0.656/0.197/237.9 (0.6 s)
+2026-10-14 16:29:29,236 model: 133443 trainable parameters
+2026-10-14 16:29:30,027 resumed runs/grid/n80_physon_s1/checkpoint.pt at step 1300 (321 s trained before)
+/sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/src/pinn_surrogate/train.py:264: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+  **{f"loss_{n}": float(v) for n, v in losses.items()},
+2026-10-14 16:29:56,323 step  1400  loss 0.4531  data 0.409 (x1)  pde 27.8 (x0.001)  out 0.207 (x0.0772)  0.263 s/step
+2026-10-14 16:30:16,780 step  1500  loss 0.1763  data 0.146 (x1)  pde 18 (x0.001)  out 0.174 (x0.0733)  0.203 s/step
+2026-10-14 16:30:36,074 step  1600  loss 0.3087  data 0.273 (x1)  pde 22.6 (x0.001)  out 0.175 (x0.0733)  0.192 s/step
+2026-10-14 16:30:43,978 loaded /sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/data/packed_v1.npz: 960 solves
+2026-10-14 16:30:44,147 data: 320 train solves, loss scales u/v/p = 0.656/0.197/237.9 (0.6 s)
+2026-10-14 16:30:44,152 model: 133443 trainable parameters
+2026-10-14 16:30:44,616 resumed runs/grid/n80_physon_s1/checkpoint.pt at step 1600 (387 s trained before)
+/sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/src/pinn_surrogate/train.py:264: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+  **{f"loss_{n}": float(v) for n, v in losses.items()},
+2026-10-14 16:31:05,665 step  1700  loss 0.1944  data 0.17 (x1)  pde 13 (x0.001)  out 0.158 (x0.0719)  0.210 s/step
+2026-10-14 16:31:26,599 step  1800  loss 0.691  data 0.53 (x1)  pde 148 (x0.001)  out 0.163 (x0.0837)  0.209 s/step
+2026-10-14 16:31:47,430 step  1900  loss 0.6205  data 0.514 (x1)  pde 91.4 (x0.001)  out 0.145 (x0.105)  0.208 s/step
+2026-10-14 16:32:01,956 loaded /sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/data/packed_v1.npz: 960 solves
+2026-10-14 16:32:02,035 data: 320 train solves, loss scales u/v/p = 0.656/0.197/237.9 (0.4 s)
+2026-10-14 16:32:02,041 model: 133443 trainable parameters
+2026-10-14 16:32:02,393 resumed runs/grid/n80_physon_s1/checkpoint.pt at step 1900 (449 s trained before)
+/sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/src/pinn_surrogate/train.py:264: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+  **{f"loss_{n}": float(v) for n, v in losses.items()},
+2026-10-14 16:32:23,017 step  2000  loss 0.2399  data 0.19 (x1)  pde 35.8 (x0.001)  out 0.14 (x0.0988)  0.204 s/step
+2026-10-14 16:32:43,905 step  2100  loss 0.4163  data 0.368 (x1)  pde 36.3 (x0.001)  out 0.115 (x0.104)  0.208 s/step
+2026-10-14 16:33:05,551 step  2200  loss 0.1803  data 0.149 (x1)  pde 18.8 (x0.001)  out 0.125 (x0.104)  0.216 s/step
+2026-10-14 16:33:16,872 loaded /sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/data/packed_v1.npz: 960 solves
+2026-10-14 16:33:16,971 data: 320 train solves, loss scales u/v/p = 0.656/0.197/237.9 (0.5 s)
+2026-10-14 16:33:16,976 model: 133443 trainable parameters
+2026-10-14 16:33:17,353 resumed runs/grid/n80_physon_s1/checkpoint.pt at step 2200 (512 s trained before)
+/sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/src/pinn_surrogate/train.py:264: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+  **{f"loss_{n}": float(v) for n, v in losses.items()},
+2026-10-14 16:33:39,790 step  2300  loss 0.1353  data 0.108 (x1)  pde 14.5 (x0.001)  out 0.129 (x0.0969)  0.224 s/step
+2026-10-14 16:34:01,654 step  2400  loss 0.4522  data 0.395 (x1)  pde 41.7 (x0.001)  out 0.159 (x0.0995)  0.218 s/step
+2026-10-14 16:34:22,240 step  2500  loss 0.3353  data 0.238 (x1)  pde 84.2 (x0.001)  out 0.133 (x0.0999)  0.203 s/step
+2026-10-14 16:34:33,952 loaded /sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/data/packed_v1.npz: 960 solves
+2026-10-14 16:34:34,044 data: 320 train solves, loss scales u/v/p = 0.656/0.197/237.9 (0.5 s)
+2026-10-14 16:34:34,050 model: 133443 trainable parameters
+2026-10-14 16:34:34,370 resumed runs/grid/n80_physon_s1/checkpoint.pt at step 2500 (577 s trained before)
+/sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/src/pinn_surrogate/train.py:264: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+  **{f"loss_{n}": float(v) for n, v in losses.items()},
+2026-10-14 16:34:54,090 step  2600  loss 0.09161  data 0.0759 (x1)  pde 5.38 (x0.001)  out 0.109 (x0.0945)  0.197 s/step
+2026-10-14 16:35:15,366 step  2700  loss 0.2515  data 0.213 (x1)  pde 26.5 (x0.001)  out 0.127 (x0.0962)  0.212 s/step
+2026-10-14 16:35:36,227 step  2800  loss 0.1732  data 0.147 (x1)  pde 14.1 (x0.001)  out 0.129 (x0.0929)  0.208 s/step
+2026-10-14 16:35:48,756 loaded /sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/data/packed_v1.npz: 960 solves
+2026-10-14 16:35:48,842 data: 320 train solves, loss scales u/v/p = 0.656/0.197/237.9 (0.5 s)
+2026-10-14 16:35:48,846 model: 133443 trainable parameters
+2026-10-14 16:35:49,193 resumed runs/grid/n80_physon_s1/checkpoint.pt at step 2800 (638 s trained before)
+/sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/src/pinn_surrogate/train.py:264: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+  **{f"loss_{n}": float(v) for n, v in losses.items()},
+2026-10-14 16:36:09,813 step  2900  loss 0.1918  data 0.159 (x1)  pde 22.5 (x0.001)  out 0.118 (x0.0875)  0.206 s/step
+2026-10-14 16:36:30,528 step  3000  loss 0.09221  data 0.0747 (x1)  pde 6.61 (x0.001)  out 0.131 (x0.0833)  0.204 s/step
+2026-10-14 16:36:30,595 trained 3000 steps: 679 s optimizing (0.226 s/step), 12 session(s)
+2026-10-14 16:36:47,402 evaluated val: 160 solves in 16.8 s
+2026-10-14 16:37:05,629 loaded /sessions/rcw-01dtkyvzhn2jflpblhkkkwon/mnt/butcher_lab_fsg_exploration/pinn_surrogate/data/packed_v1.npz: 960 solves
+2026-10-14 16:37:05,698 data: 320 train solves, loss scales u/v/p = 0.656/0.197/237.9 (0.4 s)
+2026-10-14 16:37:05,702 model: 133443 trainable parameters
+2026-10-14 16:37:06,026 resumed runs/grid/n80_physon_s1/checkpoint.pt at step 3000 (679 s trained before)
+2026-10-14 16:37:06,044 trained 3000 steps: 679 s optimizing (0.226 s/step), 13 session(s)
+2026-10-14 16:37:22,403 evaluated val: 160 solves in 16.4 s
+2026-10-14 16:37:38,344 evaluated test_B: 160 solves in 15.9 s
+2026-10-14 16:37:39,058 val    median: tau 0.4042  p 0.1886  peak 0.0078  sign 0.991  pde 1.31  infer 16.0 ms
+2026-10-14 16:37:39,059 test_B median: tau 0.3701  p 0.0985  peak 0.0412  sign 1.000  pde 1.03  infer 15.5 ms
+2026-10-14 16:37:39,059 wrote runs/grid/n80_physon_s1/eval.json and wall_tau_test_B.png, error_vs_re.png
