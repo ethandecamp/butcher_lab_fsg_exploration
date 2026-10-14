@@ -168,8 +168,7 @@ Tests: 63 (`unittest`), incl. analytic Poiseuille/Kovasznay, hard-constraint, re
 
 ## 8. Open items / next steps (as of hand-off)
 
-- **Ethan to do on his Mac:** `git add pinn_surrogate/figures/*.png pinn_surrogate/runs/grid/*/*.png
-  && git commit -m "docs(pinn): add report figures"`. Optionally delete `.git/*stale*` lock files.
+- Figure PNGs: committed by Ethan on his Mac (`ed163a8`). Optionally delete `.git/*stale*` lock files.
 - REPORT "Reproduce" is ambiguous: on Ethan's Mac `ablation.sh` should skip finished runs (it uses
   `--resume`; checkpoints exist locally) — **this skip path was never actually exercised** (the
   check timed out when the Mac went to sleep). On a fresh clone `.pt` files are absent → full
