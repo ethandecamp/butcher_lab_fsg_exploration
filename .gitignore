@@ -219,3 +219,6 @@ __marimo__/
 
 # macOS
 .DS_Store
+
+# Dan's steady-state CFD dataset (24 GB incl. zip) — never commit; .gitattributes would push it through LFS
+steady_state_dataset/
