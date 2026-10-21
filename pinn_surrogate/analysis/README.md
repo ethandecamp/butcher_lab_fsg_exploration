@@ -60,3 +60,29 @@ with δ. At δ = 0.5 the target U = u/m has no kink (U/(τδ) falls smoothly 0.9
 = 0.68 at 2–4 µm vs 0.96 true (`a3_profile.py runs/delta/d0.5_s0 test_B`). Wider δ also makes the
 profile *shape* worse (rescaled error 0.13 → 0.22, peak location 0.03 → 0.07). Keep δ = 0.05.
 What remains is finding 5: the objective (absolute MSE on values; wall shear unsupervised).
+
+## v2 step 1: direct wall-shear loss (`--tau-weight`)
+
+New loss term `losses.wall_tau_loss` (per-solve relative squared error of τ_t at the 256
+outline points, i.e. the square of the evaluation metric), fixed weight `--tau-weight`
+(0 = off = bit-identical to v1; tested). n160, physics off, 3,000 steps, 2 seeds;
+`./analysis/tau_sweep.sh`, compared with `python3 analysis/a6_compare.py <runs...>`.
+~0.085 s/step at 2 threads (3x the data-only cost; one extra autograd pass at 8 x 256 wall points).
+
+test_B medians, seed 0 / seed 1:
+
+| tau weight | wall shear | wall p | u field | v field | peak ratio (s0) | shear by flow k0 → k3 (s0) |
+|---|---|---|---|---|---|---|
+| 0 (v1) | 0.385 / 0.343 | 0.070 / 0.070 | 0.066 / 0.063 | 0.28 / 0.25 | 0.65 | 0.34 0.37 0.41 0.51 |
+| 1 | **0.151 / 0.146** | 0.056 / 0.068 | 0.079 / 0.073 | 0.29 / 0.25 | 0.89 | 0.13 0.14 0.15 0.22 |
+| 10 | **0.131 / 0.111** | 0.085 / 0.080 | 0.160 / 0.152 | 0.41 / 0.36 | 0.96 | 0.12 0.12 0.13 0.16 |
+
+- Shear error drops 2.5–3x, and the run beats the v1 run of the same seed on 98–100 % of
+  test_B solves (val: 92–98 %). The amplitude bias is mostly gone (peak ratio 0.65 → 0.89 / 0.96).
+- Cost: weight 1 raises velocity-field error ~15–35 % (u 0.066 → 0.079 test_B, 0.092 → 0.125 val)
+  with wall pressure unchanged; weight 10 doubles u error and worsens wall pressure.
+- val is now harder than test_B (shear 0.25 / 0.19–0.21 vs 0.15 / 0.11–0.13). val has higher
+  blockage (median 0.53 vs 0.34), and v1 already showed error depends on shape.
+- Still under-fit, not over-fit: training-shape shear error (0.19 at w1, 0.14 at w10) is no
+  better than held-out. Quick-val shear now keeps falling until ~step 2,000–2,500 instead of
+  bottoming out at 1,000, so more steps / capacity now have something to act on.

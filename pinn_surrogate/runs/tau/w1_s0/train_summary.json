@@ -1,0 +1,11 @@
+{
+ "steps": 3000,
+ "train_s": 279.548356628864,
+ "wall_s": 283.13085746699653,
+ "sessions": 2,
+ "sec_per_step": 0.09318278554295466,
+ "n_params": 133443,
+ "final_lambdas": {
+  "data": 1.0
+ }
+}

@@ -97,6 +97,12 @@ class TrainConfig:
     # 0.1 is what the report's grid used; it is untuned (the PDE weight then sat near its
     # 1e-3 floor for most of training, so a sweep of share and floor is still open).
     physics_share: float = 0.1
+    # Fixed weight of the direct wall-shear loss (``losses.wall_tau_loss``: per-solve
+    # relative squared error of tau_t at the 256 outline points, Dan's ``*_256`` values).
+    # 0 = off, which reproduces the v1 runs exactly. Added in v2 because the v1 diagnostics
+    # (analysis/README.md) showed absolute-MSE value fitting leaves wall shear ~0.6x low.
+    # Not adaptive: the data loss and this term are both O(0.1-1) relative errors.
+    tau_weight: float = 0.0
     max_eval_solves: int = 0  # 0 = all solves in the final evaluation (smoke tests use >0)
     # Full training state (weights, Adam moments, LR schedule, loss weights, RNG) is saved
     # every ckpt_every steps, so a laptop sleep or VM restart loses at most that much work.
@@ -165,6 +171,7 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--eval-solves", type=int, default=d.eval_solves)
     ap.add_argument("--balance-every", type=int, default=d.balance_every)
     ap.add_argument("--physics-share", type=float, default=d.physics_share)
+    ap.add_argument("--tau-weight", type=float, default=d.tau_weight)
     ap.add_argument("--max-eval-solves", type=int, default=d.max_eval_solves)
     ap.add_argument("--ckpt-every", type=int, default=d.ckpt_every)
     ap.add_argument(
@@ -194,6 +201,8 @@ def parse_config(argv: list[str] | None = None) -> TrainConfig:
     for name in (*positive, "ckpt_every", "log_every", "balance_every"):
         if getattr(a, name) < 1:
             raise SystemExit(f"--{name.replace('_', '-')} must be >= 1")
+    if a.tau_weight < 0:
+        raise SystemExit("--tau-weight must be >= 0")
     if not 0 < a.lr_min <= a.lr:
         raise SystemExit("need 0 < --lr-min <= --lr")
     model = ModelConfig(
@@ -221,6 +230,7 @@ def parse_config(argv: list[str] | None = None) -> TrainConfig:
         eval_solves=a.eval_solves,
         balance_every=a.balance_every,
         physics_share=a.physics_share,
+        tau_weight=a.tau_weight,
         max_eval_solves=a.max_eval_solves,
         ckpt_every=a.ckpt_every,
         resume=a.resume,

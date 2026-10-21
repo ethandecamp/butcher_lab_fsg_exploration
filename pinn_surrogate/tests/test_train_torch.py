@@ -83,6 +83,22 @@ class TestTrain(unittest.TestCase):
             train_mod.train(parse_config([*TINY, "--out", str(b), "--resume"]))
             self.assertEqual((b / "eval.json").stat().st_mtime_ns, mtime)
 
+    def test_tau_loss_runs_and_zero_weight_is_v1(self) -> None:
+        """--tau-weight > 0 logs a tau term; --tau-weight 0 gives the exact v1 weights."""
+        with tempfile.TemporaryDirectory() as tmp:
+            a, b, c = (Path(tmp) / n for n in "abc")
+            off = [*TINY, "--physics", "off"]
+            train_mod.train(parse_config([*off, "--out", str(a)]))
+            train_mod.train(parse_config([*off, "--tau-weight", "0", "--out", str(b)]))
+            train_mod.train(parse_config([*off, "--tau-weight", "1", "--out", str(c)]))
+            wa, wb, wc = (torch_load(r / "model.pt")["state_dict"] for r in (a, b, c))
+            for k in wa:
+                self.assertTrue(torch.equal(wa[k], wb[k]), k)
+            self.assertFalse(all(torch.equal(wa[k], wc[k]) for k in wa))
+            row = json.loads((c / "metrics.jsonl").read_text().splitlines()[-1])
+            self.assertIn("loss_tau", row)
+            self.assertEqual(row["lambda_tau"], 1.0)
+
     def test_physics_off_and_eval_contents(self) -> None:
         """Data-only arm logs only the data loss; eval.json has both splits and all metrics."""
         with tempfile.TemporaryDirectory() as tmp:

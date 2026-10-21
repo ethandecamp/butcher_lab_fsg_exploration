@@ -33,7 +33,7 @@ from pinn_surrogate.config import TrainConfig, data_scales, parse_config
 from pinn_surrogate.data import load_packed
 from pinn_surrogate.dataset import Batch, SolveSet, sample_batch
 from pinn_surrogate.evaluate import evaluate_model, quick_check
-from pinn_surrogate.losses import AdaptiveWeights, data_loss, outlet_loss, pde_loss
+from pinn_surrogate.losses import AdaptiveWeights, data_loss, outlet_loss, pde_loss, wall_tau_loss
 from pinn_surrogate.model import ConditionedPINN, atomic_save, save_checkpoint, torch_load
 
 log = logging.getLogger(__name__)
@@ -56,10 +56,19 @@ def compute_losses(
     batch: Batch,
     scales: tuple[float, float, float],
     use_physics: bool,
+    use_tau: bool = False,
 ) -> dict[str, torch.Tensor]:
-    """All loss terms for one batch (physics terms only if ``use_physics``)."""
+    """All loss terms for one batch (physics only if ``use_physics``, wall shear if ``use_tau``)."""
     pred = model(batch.xy, batch.outline, batch.log_re)
     losses = {"data": data_loss(pred, batch.uvp, batch.weight, scales)}
+    if use_tau:
+        wq = physics.wall_quantities(
+            model.field_fn(batch.outline, batch.log_re),
+            batch.outline,
+            batch.normals,
+            offset=model.cfg.wall_offset,
+        )
+        losses["tau"] = wall_tau_loss(wq["tau_t"], batch.wall_tau_t)
     if use_physics:
         fn = model.field_fn(batch.outline, batch.log_re)
         losses["pde"] = pde_loss(
@@ -241,10 +250,12 @@ def train(cfg: TrainConfig) -> Path:
         batch = sample_batch(
             train_set, rng, cfg.batch_solves, cfg.nodes_per_solve, cfg.pde_nodes_per_solve
         )
-        losses = compute_losses(model, batch, scales, cfg.physics)
+        losses = compute_losses(model, batch, scales, cfg.physics, cfg.tau_weight > 0)
         if cfg.physics and (step == 1 or step % cfg.balance_every == 0):
             weights.update(losses, params)
-        loss = weights.total(losses)
+        loss = weights.total(losses)  # adaptive terms only; "tau" has a fixed weight
+        if "tau" in losses:
+            loss = loss + cfg.tau_weight * losses["tau"]
         if not torch.isfinite(loss):
             raise FloatingPointError(f"non-finite loss at step {step}: {losses}")
         opt.zero_grad(set_to_none=True)
@@ -263,13 +274,15 @@ def train(cfg: TrainConfig) -> Path:
                 "loss": float(loss.detach()),
                 **{f"loss_{n}": float(v) for n, v in losses.items()},
                 **{f"lambda_{n}": v for n, v in weights.lambdas.items()},
+                **({"lambda_tau": cfg.tau_weight} if "tau" in losses else {}),
             }
             train_at_log, step_at_log = clock.train_s, step
             if cfg.eval_every > 0 and step % cfg.eval_every == 0:
                 row.update(quick_check(model, val_quick))
             writer.write(row)
             terms = "  ".join(
-                f"{n} {float(v):.3g} (x{weights.lambdas[n]:.3g})" for n, v in losses.items()
+                f"{n} {float(v):.3g} (x{weights.lambdas.get(n, cfg.tau_weight):.3g})"
+                for n, v in losses.items()
             )
             log.info(
                 "step %5d  loss %.4g  %s  %.3f s/step",

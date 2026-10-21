@@ -46,6 +46,22 @@ def data_loss(
     return loss
 
 
+def wall_tau_loss(tau_pred: torch.Tensor, tau_true: torch.Tensor) -> torch.Tensor:
+    """Mean over solves of the squared relative L2 error of the wall shear.
+
+    Per-solve relative (not pooled MSE) so it is the square of the evaluation metric
+    ``tau_rel_l2`` and low- and high-Re solves count alike.
+
+    Args:
+        tau_pred, tau_true: (B, K) signed wall shear at the wall points.
+
+    Returns:
+        Scalar.
+    """
+    num = ((tau_pred - tau_true) ** 2).sum(-1)
+    return (num / (tau_true**2).sum(-1).clamp_min(1e-12)).mean()
+
+
 FLOOR = 0.01  # scale floor, as a fraction of the solve's c (stagnant zones have tiny terms)
 
 

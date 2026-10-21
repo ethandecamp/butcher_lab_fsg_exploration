@@ -133,6 +133,8 @@ class Batch:
     c: torch.Tensor  # (B, 1)
     c_mom: torch.Tensor  # (B, P) local momentum-term size at the collocation nodes
     c_div: torch.Tensor  # (B, P) local divergence-term size
+    normals: torch.Tensor  # (B, 256, 2) wall normals at the outline vertices, into the fluid
+    wall_tau_t: torch.Tensor  # (B, 256) Dan's signed wall shear at the outline vertices
 
 
 def _random_subsets(rng: np.random.Generator, n_rows: int, n_items: int, k: int) -> np.ndarray:
@@ -173,4 +175,6 @@ def sample_batch(
         c=s.c[sol_t][:, None],
         c_mom=s.mom_scale[rows, pde_pos],
         c_div=s.div_scale[rows, pde_pos],
+        normals=s.normals[sol_t],
+        wall_tau_t=s.wall_tau_t[sol_t],
     )
