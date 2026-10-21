@@ -294,7 +294,7 @@ def train(cfg: TrainConfig) -> Path:
                 "sec_per_step": (clock.train_s - train_at_log) / (step - step_at_log),
                 "lr": sched.get_last_lr()[0],
                 "loss": float(loss.detach()),
-                **{f"loss_{n}": float(v) for n, v in losses.items()},
+                **{f"loss_{n}": float(v.detach()) for n, v in losses.items()},
                 **{f"lambda_{n}": v for n, v in weights.lambdas.items()},
                 **{f"lambda_{n}": w for n, w in fixed.items() if n in losses},
             }
@@ -303,7 +303,7 @@ def train(cfg: TrainConfig) -> Path:
                 row.update(quick_check(model, val_quick))
             writer.write(row)
             terms = "  ".join(
-                f"{n} {float(v):.3g} (x{weights.lambdas.get(n, fixed.get(n, 0.0)):.3g})"
+                f"{n} {float(v.detach()):.3g} (x{weights.lambdas.get(n, fixed.get(n, 0.0)):.3g})"
                 for n, v in losses.items()
             )
             log.info(
