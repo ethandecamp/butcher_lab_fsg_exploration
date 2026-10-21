@@ -154,3 +154,14 @@ All numbers below are on the **v1 pack** (same nodes for every model) via
   the test_B gain vs v2-small is that, not only scale. val (family never in doubt: A/C/D/E)
   improved 0.249 → 0.108 under the same condition as before, which is the cleaner comparison.
 - Figures: `figures/v3/` (`analysis/fig_v3_data.py` then `analysis/fig_v3.py`).
+
+### Leakage check for test_B in the big run (2026-10-21)
+
+Family B shapes are cushion outlines harvested from Dan's FSG runs (`meta.json` `params.src` =
+run/step mesh), rescaled (sx, sy) and sometimes mirrored: 175 shapes from 156 source meshes and
+47 runs (19 meshes give 2 shapes). In the v2 pack 135 B shapes are in train, so of the 40
+test_B shapes, 8 share their exact source mesh with a training shape, 28 more share the FSG
+run (another step), and 4 come from runs absent from training. Median test_B shear error by group
+(big / v2-small / v1): same mesh 0.087 / 0.154 / 0.352; same run 0.056 / 0.150 / 0.404;
+unseen run 0.066 / 0.154 / 0.255 (n = 4 shapes, so weak). No sign the big run's 0.063 is inflated
+by near-duplicates; a split by FSG run (all steps of a run on one side) would make it airtight.
