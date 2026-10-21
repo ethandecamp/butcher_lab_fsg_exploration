@@ -103,7 +103,7 @@ class ConditionedPINN(nn.Module):
         torch.manual_seed(cfg.seed)  # reproducible initial weights
         self.encoder = ShapeEncoder(cfg.n_outline, cfg.enc_width, cfg.latent)
         self.fourier = FourierFeatures(cfg.n_fourier, cfg.fourier_sigma, cfg.seed)
-        n_in = 2 * cfg.n_fourier + 2 + cfg.latent + 1
+        n_in = 2 * cfg.n_fourier + 2 + cfg.latent + 1 + (3 if cfg.wall_dist_input else 0)
         self.trunk = mlp([n_in] + [cfg.width] * cfg.depth + [3])
         self.register_buffer("log_re_mean", torch.zeros(()))
         self.register_buffer("log_re_std", torch.ones(()))
@@ -129,7 +129,11 @@ class ConditionedPINN(nn.Module):
             self.log_re_std.fill_(float(max(lr.std(), 1e-6)))
 
     def trunk_outputs(
-        self, xy: torch.Tensor, z: torch.Tensor, log_re: torch.Tensor
+        self,
+        xy: torch.Tensor,
+        z: torch.Tensor,
+        log_re: torch.Tensor,
+        dist: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Raw network outputs (N_u, N_v, N_p) at points xy, shape (B, N, 3).
 
@@ -137,6 +141,7 @@ class ConditionedPINN(nn.Module):
             xy: (B, N, 2) nondim points.
             z: (B, latent) shape codes.
             log_re: (B,) natural log of Re.
+            dist: (B, N) distance to the cushion; used only if ``cfg.wall_dist_input``.
         """
         bsz, n = xy.shape[:2]
         coords = torch.stack([xy[..., 0] / X_SCALE, xy[..., 1]], dim=-1)
@@ -147,6 +152,9 @@ class ConditionedPINN(nn.Module):
             z.unsqueeze(1).expand(bsz, n, z.shape[-1]),
             re_in.expand(bsz, n, 1),
         ]
+        if self.cfg.wall_dist_input:
+            dl = self.cfg.delta
+            feats.append(torch.stack([torch.tanh(dist / dl), torch.tanh(dist / (4 * dl)), dist], -1))
         return self.trunk(torch.cat(feats, dim=-1))
 
     def parts(
@@ -155,10 +163,11 @@ class ConditionedPINN(nn.Module):
         """Every factor of the ansatz, for tests and diagnostics (each (B, N))."""
         c = self.cfg
         x, y = xy[..., 0], xy[..., 1]
-        raw = self.trunk_outputs(xy, self.encoder(outline), log_re)
+        dist = polyline_distance(xy, outline)
+        raw = self.trunk_outputs(xy, self.encoder(outline), log_re, dist)
         w = y * (1 - y)
         return {
-            "m": torch.tanh(polyline_distance(xy, outline) / c.delta),
+            "m": torch.tanh(dist / c.delta),
             "w": w,
             "g": (x - INLET_X) / (2 * X_SCALE),
             "u_p": 6 * w,

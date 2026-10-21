@@ -167,6 +167,40 @@ python3 analysis/a6_compare.py runs/grid/n160_physoff_s0 runs/tau/w1_s0 runs/gra
 
 Speed at 2 threads on the VM: data only ~0.03 s/step, + wall shear ~0.085, + both ~0.07–0.12.
 
+## 8. The v2 big run on the Mac (added 2026-10-21)
+
+What it tests: does scaling data (~920 training shapes, denser near-wall sampling), model
+(288 x 6 trunk, wall-distance input, latent 64) and training (batch 16, ~20k steps) push the
+held-out FSG wall-shear error below the v2 small runs (0.15 at tau weight 1)? One seed,
+physics off, tau weight 3. Same val and test_B geometries as v1; FSG-derived (family B)
+shapes are now in training, so test_B means "unseen shapes of a seen family".
+
+One-time setup (already done 2026-10-21):
+
+```bash
+cd ~/Documents/Research/ButcherLab/butcher_lab_fsg_exploration/pinn_surrogate
+python3 -m venv .venv && source .venv/bin/activate && pip install torch numpy matplotlib
+```
+
+Run / resume / check (from `pinn_surrogate/`):
+
+```bash
+./run_big.sh        # start; also the command to resume after a reboot or a killed Terminal
+./status_big.sh     # step, s/step, time left, quick val wall-shear error
+TRAIN_HOURS=2 ./run_big.sh   # size the run for a different budget (only before the first start)
+```
+
+- Closing the lid just sleeps the Mac; training pauses and continues on wake.
+- A reboot or a killed process loses at most 200 steps: run `./run_big.sh` again.
+- The step count is fixed the first time (`runs/big/STEPS`, from a 150-step timing run) and
+  every resume reuses it, so the learning-rate schedule stays consistent.
+- To start over from scratch: move `runs/big/` aside, then `./run_big.sh`.
+- Results: `runs/big/eval.json` and `runs/big/stdout.log`; compare with
+  `python3 analysis/a6_compare.py runs/tau/w1_s0 runs/big`.
+
+New flags used by it: `--packed`, `--wall-dist-input`, `--enc-width`, `--latent`, any
+`--n-train-geoms`. Pack: `python -m pinn_surrogate.pack --version v2 --out data/packed_v2.npz`.
+
 ## Stage 1–2 tools (numpy only)
 
 ```bash

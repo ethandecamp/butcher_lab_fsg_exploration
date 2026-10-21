@@ -228,6 +228,9 @@ pinn_surrogate/wheels/
 pinn_surrogate/wheels_cpu/
 pinn_surrogate/data/packed_v1.npz
 pinn_surrogate/data/packed_v1_grads.npz
+pinn_surrogate/data/packed_v2.npz
+pinn_surrogate/runs/big/_bench/
+pinn_surrogate/runs/big/train.pid
 pinn_surrogate/data/full/
 pinn_surrogate/runs/**/*.pt
 pinn_surrogate/runs/**/*.pt.tmp

@@ -55,8 +55,13 @@ class TestParse(unittest.TestCase):
         self.assertEqual(cfg.run_name(), "n160_physoff_s3")
 
     def test_rejects_bad_values(self) -> None:
-        """Sizes outside {20, 80, 160}, unknown physics, zero steps, lr_min > lr."""
-        self.assertTrue(_parse_fails(["--n-train-geoms", "50"]))
+        """Train size < 1, unknown physics, zero steps, lr_min > lr.
+
+        (v1 also rejected sizes outside {20, 80, 160}; v2 allows any size up to the pack's
+        train count, which ``Packed.train_subset`` enforces.)
+        """
+        self.assertTrue(_parse_fails(["--n-train-geoms", "0"]))
+        self.assertFalse(_parse_fails(["--n-train-geoms", "50"]))
         self.assertTrue(_parse_fails(["--physics", "maybe"]))
         self.assertTrue(_parse_fails(["--steps", "0"]))
         self.assertTrue(_parse_fails(["--lr", "1e-4", "--lr-min", "1e-3"]))

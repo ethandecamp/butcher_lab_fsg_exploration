@@ -59,6 +59,10 @@ class ModelConfig:
     # adds to tau is ~2 * offset / (length scale of u/m) ~ 0.2-0.4 %, below the FEM's own
     # 0.7-1.2 % wall-shear discretization error (LOG.md, Stage 2).
     wall_offset: float = 1e-4
+    # v2: also feed the trunk the distance to the cushion, as (tanh(d/delta), tanh(d/4delta),
+    # d). The v1 trunk only saw (x, y) and the shape code, so it had to infer where the
+    # wall is to resolve the few-um near-wall layer. False reproduces v1 exactly.
+    wall_dist_input: bool = False
     seed: int = 0
 
 
@@ -72,6 +76,8 @@ class TrainConfig:
     """
 
     n_train_geoms: int = 20
+    # Packed data file; "" = data/packed_v1.npz. v2's is data/packed_v2.npz (pack.py --version v2).
+    packed: str = ""
     physics: bool = True
     steps: int = 3000
     batch_solves: int = 8
@@ -160,7 +166,9 @@ def build_parser() -> argparse.ArgumentParser:
     """Command-line interface of ``train.py``."""
     d, m = TrainConfig(), ModelConfig()
     ap = argparse.ArgumentParser(description="Train the conditioned PINN (one ablation arm).")
-    ap.add_argument("--n-train-geoms", type=int, choices=TRAIN_SIZES, default=d.n_train_geoms)
+    ap.add_argument("--n-train-geoms", type=int, default=d.n_train_geoms,
+                    help=f"first N train geometries (v1 grid used {TRAIN_SIZES})")
+    ap.add_argument("--packed", type=str, default=d.packed, help="packed .npz (default v1)")
     ap.add_argument("--physics", choices=("on", "off"), default="on")
     ap.add_argument("--steps", type=int, default=d.steps)
     ap.add_argument("--batch-solves", type=int, default=d.batch_solves)
@@ -191,6 +199,9 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--delta", type=float, default=m.delta)
     ap.add_argument("--fourier-sigma", type=float, default=m.fourier_sigma)
     ap.add_argument("--n-fourier", type=int, default=m.n_fourier)
+    ap.add_argument("--enc-width", type=int, default=m.enc_width)
+    ap.add_argument("--latent", type=int, default=m.latent)
+    ap.add_argument("--wall-dist-input", action="store_true", help="feed distance-to-cushion to the trunk")
     return ap
 
 
@@ -205,7 +216,7 @@ def parse_config(argv: list[str] | None = None) -> TrainConfig:
     """
     a = build_parser().parse_args(argv)
     positive = ("steps", "batch_solves", "nodes_per_solve", "pde_nodes_per_solve", "threads")
-    for name in (*positive, "ckpt_every", "log_every", "balance_every"):
+    for name in (*positive, "ckpt_every", "log_every", "balance_every", "n_train_geoms"):
         if getattr(a, name) < 1:
             raise SystemExit(f"--{name.replace('_', '-')} must be >= 1")
     if a.tau_weight < 0 or a.grad_weight < 0:
@@ -220,10 +231,14 @@ def parse_config(argv: list[str] | None = None) -> TrainConfig:
         delta=a.delta,
         fourier_sigma=a.fourier_sigma,
         n_fourier=a.n_fourier,
+        enc_width=a.enc_width,
+        latent=a.latent,
+        wall_dist_input=a.wall_dist_input,
         seed=a.seed,
     )
     cfg = TrainConfig(
         n_train_geoms=a.n_train_geoms,
+        packed=a.packed,
         physics=a.physics == "on",
         steps=a.steps,
         batch_solves=a.batch_solves,

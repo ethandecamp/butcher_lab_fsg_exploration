@@ -227,7 +227,7 @@ def train(cfg: TrainConfig) -> Path:
     rng = np.random.default_rng(cfg.seed)
 
     t_load = time.perf_counter()
-    pk = load_packed()
+    pk = load_packed(Path(cfg.packed)) if cfg.packed else load_packed()
     nd = pk.nondim()
     train_set = SolveSet.from_packed(pk, nd, pk.train_subset(cfg.n_train_geoms))
     val_quick = SolveSet.from_packed(pk, nd, pk.split_indices("val")[: cfg.eval_solves])
