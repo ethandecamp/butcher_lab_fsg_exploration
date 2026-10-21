@@ -124,3 +124,33 @@ Why (`a8_grad_fit.py`, model vs Dan du_t/dn ÷ τ_wall in the peak region, test_
 - Practical: keep tau weight 1, gradient weight 0. Re-try tau + grad once the model is bigger
   or has a wall-distance input; tau + grad matching or beating tau-only is a direct sign the
   model can now represent the layer.
+
+## v2 step 3: the big run (`./run_big.sh`, Mac, 2026-10-21)
+
+920 training shapes (incl. 135 family B), v2 pack (all interior nodes < 20 µm, cap 1,024),
+trunk 288 x 6 + wall-distance input, encoder 256 wide, latent 64 (669k params), tau weight 3,
+physics off, batch 16, 68,000 steps (sized to 3.5 h; 0.184 s/step on the Mac, 4 threads), seed 0.
+All numbers below are on the **v1 pack** (same nodes for every model) via
+`python3 analysis/a9_big_eval.py <runs>`; train = every 5th solve of the 160 v1 train shapes.
+
+| | train shear | test_B shear | val shear | test_B peak ratio | test_B wall p | test_B u | test_B v |
+|---|---|---|---|---|---|---|---|
+| v1 (n160 s0) | 0.425 | 0.385 | 0.375 | 0.62 | 0.070 | 0.066 | 0.28 |
+| v2 small (tau w1 s0) | 0.207 | 0.151 | 0.249 | 0.89 | 0.056 | 0.079 | 0.29 |
+| **big run** | **0.012** | **0.063** | **0.108** | **0.99** | **0.037** | **0.013** | **0.06** |
+
+- Wall shear by flow index k0 → k3, test_B: 0.063 0.063 0.065 0.067 (v1: 0.34 → 0.51); val:
+  0.094 0.104 0.112 0.111. The high-Re penalty is gone.
+- Near-wall du_t/dn ÷ τ_wall in the peak region (`a8_grad_fit.py runs/big`): 0.96 / 0.91 / 0.83 /
+  0.66 at 2–5 / 5–10 / 10–20 / 20–50 µm, identical to Dan's. The representation limit of
+  step 2 is resolved.
+- **Now generalization-limited:** training-shape error 0.012 vs 0.063 (FSG) and 0.108 (synthetic).
+  Quick-val shear (16 val solves) reached ~0.10 by step ~20k and is flat from ~40k
+  (`figures/v3/fig_learning_curve.png`), so more steps alone will not help.
+- Ripple (`a10_roughness.py`): median roughness of predicted τ along the arc ÷ truth's = 0.98
+  (test_B) / 0.96 (val), but 17–18 % of solves are > 1.5x rougher (e.g. g_00354 in
+  `fig_wall_curves_big.png`). Small, real; a smoothness target (Dan saves `wssg`) is an option.
+- Caveats: one seed; test_B family is now in training (unseen shapes, seen family), so part of
+  the test_B gain vs v2-small is that, not only scale. val (family never in doubt: A/C/D/E)
+  improved 0.249 → 0.108 under the same condition as before, which is the cleaner comparison.
+- Figures: `figures/v3/` (`analysis/fig_v3_data.py` then `analysis/fig_v3.py`).
