@@ -144,6 +144,29 @@ cat runs/grid/ablation_summary.md runs/grid/comparison.md
 (numpy only). `figures` writes `fig_scaling.png` (error and residual vs training size, every
 seed) and `fig_wall_curves.png` (wall shear along one held-out FSG cushion, FEM vs both arms).
 
+## 7. v2 losses: wall shear and near-wall gradients (added 2026-10-21)
+
+Two optional fixed-weight loss terms; both default to 0, which reproduces v1 bit-for-bit.
+Findings and the full diagnostics are in `analysis/README.md`.
+
+```bash
+# wall-shear loss at the 256 wall points (the v2 default to use: weight 1)
+PYTHONPATH=src python3 -m pinn_surrogate.train --n-train-geoms 160 --physics off \
+  --tau-weight 1 --steps 3000 --threads 4 --out runs/my_tau_run
+
+# near-wall gradient loss needs Dan's gradients packed once (~7 s, numpy only):
+PYTHONPATH=src python3 -m pinn_surrogate.pack_grads --dataset ../steady_state_dataset/dataset_v1_1k
+PYTHONPATH=src python3 -m pinn_surrogate.train --n-train-geoms 160 --physics off \
+  --tau-weight 1 --grad-weight 1 --grad-nodes-per-solve 256 --out runs/my_tau_grad_run
+
+# the sweeps behind the README tables (VM: call repeatedly until "all runs finished")
+./analysis/tau_sweep.sh      # --tau-weight 1, 10 x seeds 0, 1  -> runs/tau/
+./analysis/grad_sweep.sh     # tau/grad 0/1 and 1/1 x seeds 0, 1 -> runs/grad/
+python3 analysis/a6_compare.py runs/grid/n160_physoff_s0 runs/tau/w1_s0 runs/grad/t1g1_s0
+```
+
+Speed at 2 threads on the VM: data only ~0.03 s/step, + wall shear ~0.085, + both ~0.07–0.12.
+
 ## Stage 1–2 tools (numpy only)
 
 ```bash
