@@ -41,3 +41,22 @@ python3 analysis/a5_abs_error.py runs/grid/n160_physoff_s0              # absolu
 9. **Unused data.** Packed: 240/1,000 geometries, 3,072/~22k nodes per solve (~108 interior
    nodes < 5 µm vs ~420 in the full mesh). Dan's files also carry velocity gradients
    (u_x, u_y, v_x, v_y) at every node and wall τ at full arc resolution; none is in the loss.
+
+## Follow-up: mask-width sweep (tests finding 6) — finding 6 is NOT the cause
+
+`./analysis/delta_sweep.sh` (call repeatedly until "all runs finished"; ~2 min per call on the
+VM). n160, physics off, 3,000 steps, seeds 0 / 1; δ = 0.05 is the existing `runs/grid` baseline.
+
+| δ (H) | test_B shear err s0 / s1 | peak ratio (s0) | err after best-fit rescale (s0) | wall p err s0 / s1 |
+|---|---|---|---|---|
+| 0.05 (baseline) | 0.385 / 0.343 | 0.65 | 0.13 | 0.070 / 0.070 |
+| 0.1 | 0.458 / 0.419 | 0.56 | 0.15 | 0.078 / 0.059 |
+| 0.2 | 0.401 / 0.409 | 0.68 | 0.22 | 0.063 / 0.063 |
+| 0.5 | 0.367 / 0.375 | 0.67 | 0.23 | 0.059 / 0.066 |
+
+(Peak ratio and rescaled error on every other test_B solve.) The amplitude bias does not move
+with δ. At δ = 0.5 the target U = u/m has no kink (U/(τδ) falls smoothly 0.96 → 0.75 from 2 to
+60 µm), yet the prediction still undershoots at the wall by the same amount as before: u_t/(τ d)
+= 0.68 at 2–4 µm vs 0.96 true (`a3_profile.py runs/delta/d0.5_s0 test_B`). Wider δ also makes the
+profile *shape* worse (rescaled error 0.13 → 0.22, peak location 0.03 → 0.07). Keep δ = 0.05.
+What remains is finding 5: the objective (absolute MSE on values; wall shear unsupervised).
