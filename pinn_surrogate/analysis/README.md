@@ -86,3 +86,41 @@ test_B medians, seed 0 / seed 1:
 - Still under-fit, not over-fit: training-shape shear error (0.19 at w1, 0.14 at w10) is no
   better than held-out. Quick-val shear now keeps falling until ~step 2,000–2,500 instead of
   bottoming out at 1,000, so more steps / capacity now have something to act on.
+
+## v2 step 2: near-wall velocity-gradient loss (`--grad-weight`) — does not help
+
+`data/packed_v1_grads.npz` (gitignored, ~7 s to build: `PYTHONPATH=src python3 -m
+pinn_surrogate.pack_grads --dataset ../steady_state_dataset/dataset_v1_1k`) holds Dan's
+(u_x, u_y, v_x, v_y) at the exact v1 packed nodes (seeded replay; xy checked equal for all 960
+solves). Sanity check (`a7_grad_check.py`): in the peak region his du_t/dn → τ_wall near the
+wall (0.95 at 2–5 µm, 0.88 at 5–10, 0.78 at 10–20, 0.56 at 20–50), consistent with a3's profile.
+`losses.grad_loss` = per-solve weighted relative squared error at 256 interior nodes < 50 µm.
+`./analysis/grad_sweep.sh`; n160, physics off, 3,000 steps, 2 seeds.
+
+| tau / grad weight | test_B shear s0 / s1 | wall p | u field |
+|---|---|---|---|
+| 0 / 0 (v1) | 0.385 / 0.343 | 0.070 / 0.070 | 0.066 / 0.063 |
+| 0 / 1 | 0.370 / 0.371 | 0.058 / 0.063 | 0.062 / 0.055 |
+| 1 / 0 | **0.151 / 0.146** | 0.056 / 0.068 | 0.079 / 0.073 |
+| 1 / 1 | 0.213 / 0.191 | 0.073 / 0.058 | 0.065 / 0.059 |
+
+Why (`a8_grad_fit.py`, model vs Dan du_t/dn ÷ τ_wall in the peak region, test_B s0):
+
+| run | 2–5 µm | 5–10 | 10–20 | 20–50 | at the wall (peak ratio) |
+|---|---|---|---|---|---|
+| Dan | 0.96 | 0.91 | 0.83 | 0.66 | 1 |
+| v1 | 0.77 | 0.86 | 0.87 | 0.65 | 0.65 |
+| grad only | 0.76 | 0.83 | 0.84 | 0.63 | ~0.6 |
+| tau only | 1.02 | 1.07 | 0.99 | 0.59 | 0.89 |
+| tau + grad | 0.93 | 0.97 | 0.91 | 0.59 | — |
+
+- v1 already fits the gradient roughly from 5 µm out. The failure is the last ~2 µm, where the
+  pack has ~2 nodes per solve: the wall value is an **extrapolation**, and nothing supervises
+  it. Gradient data at ≥ 2 µm cannot fix that; the wall-shear loss supervises it directly.
+- Wall-shear-only reaches the wall value with a wrong-shaped profile (too steep at 5–20 µm).
+  Adding the gradient term pulls that shape toward Dan's and loses wall accuracy. The true field
+  satisfies both losses at once, so the trade-off means **this model cannot represent the
+  near-wall layer** — a capacity / representation limit (also: train error ≥ test error).
+- Practical: keep tau weight 1, gradient weight 0. Re-try tau + grad once the model is bigger
+  or has a wall-distance input; tau + grad matching or beating tau-only is a direct sign the
+  model can now represent the layer.

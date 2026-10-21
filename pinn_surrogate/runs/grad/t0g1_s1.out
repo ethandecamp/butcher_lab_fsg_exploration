@@ -1,0 +1,49 @@
+2026-10-21 04:12:49,994 loaded /sessions/rcw-0166wpaigbkowcdoxwwgytev/mnt/butcher_lab_fsg_exploration/pinn_surrogate/data/packed_v1.npz: 960 solves
+2026-10-21 04:12:50,270 data: 640 train solves, loss scales u/v/p = 0.656/0.197/237.9 (0.6 s)
+2026-10-21 04:12:50,275 model: 133443 trainable parameters
+/sessions/rcw-0166wpaigbkowcdoxwwgytev/mnt/butcher_lab_fsg_exploration/pinn_surrogate/src/pinn_surrogate/train.py:297: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+  **{f"loss_{n}": float(v) for n, v in losses.items()},
+2026-10-21 04:12:58,100 step   100  loss 1.348  data 1.14 (x1)  grad 0.212 (x1)  0.075 s/step
+2026-10-21 04:13:05,122 step   200  loss 3.183  data 2.96 (x1)  grad 0.222 (x1)  0.070 s/step
+2026-10-21 04:13:12,582 step   300  loss 1.721  data 1.52 (x1)  grad 0.197 (x1)  0.074 s/step
+2026-10-21 04:13:19,848 step   400  loss 0.6615  data 0.586 (x1)  grad 0.0758 (x1)  0.072 s/step
+2026-10-21 04:13:26,988 step   500  loss 0.3946  data 0.333 (x1)  grad 0.0618 (x1)  0.068 s/step
+2026-10-21 04:13:33,685 step   600  loss 0.5355  data 0.452 (x1)  grad 0.0832 (x1)  0.067 s/step
+2026-10-21 04:13:40,330 step   700  loss 0.613  data 0.528 (x1)  grad 0.085 (x1)  0.066 s/step
+2026-10-21 04:13:47,066 step   800  loss 0.2417  data 0.163 (x1)  grad 0.0784 (x1)  0.067 s/step
+2026-10-21 04:13:53,875 step   900  loss 0.3077  data 0.261 (x1)  grad 0.0466 (x1)  0.067 s/step
+2026-10-21 04:14:00,661 step  1000  loss 0.1569  data 0.112 (x1)  grad 0.0446 (x1)  0.065 s/step
+2026-10-21 04:14:07,232 step  1100  loss 0.248  data 0.19 (x1)  grad 0.0584 (x1)  0.065 s/step
+2026-10-21 04:14:13,698 step  1200  loss 0.1523  data 0.0963 (x1)  grad 0.0561 (x1)  0.064 s/step
+2026-10-21 04:14:20,144 step  1300  loss 0.3557  data 0.283 (x1)  grad 0.0729 (x1)  0.064 s/step
+2026-10-21 04:14:26,578 step  1400  loss 0.2363  data 0.162 (x1)  grad 0.0739 (x1)  0.064 s/step
+2026-10-21 04:14:33,396 step  1500  loss 0.4902  data 0.412 (x1)  grad 0.078 (x1)  0.065 s/step
+2026-10-21 04:14:39,981 step  1600  loss 0.2703  data 0.15 (x1)  grad 0.12 (x1)  0.066 s/step
+2026-10-21 04:14:46,401 step  1700  loss 0.2625  data 0.197 (x1)  grad 0.0655 (x1)  0.064 s/step
+2026-10-21 04:14:53,020 step  1800  loss 0.2076  data 0.156 (x1)  grad 0.0513 (x1)  0.065 s/step
+2026-10-21 04:14:59,456 step  1900  loss 0.2874  data 0.202 (x1)  grad 0.0856 (x1)  0.064 s/step
+2026-10-21 04:15:06,325 step  2000  loss 0.3161  data 0.241 (x1)  grad 0.0748 (x1)  0.066 s/step
+2026-10-21 04:15:13,005 step  2100  loss 0.1398  data 0.0941 (x1)  grad 0.0457 (x1)  0.066 s/step
+2026-10-21 04:15:19,639 step  2200  loss 0.1491  data 0.0928 (x1)  grad 0.0563 (x1)  0.066 s/step
+2026-10-21 04:15:26,203 step  2300  loss 0.131  data 0.0908 (x1)  grad 0.0402 (x1)  0.065 s/step
+2026-10-21 04:15:32,780 step  2400  loss 0.3012  data 0.197 (x1)  grad 0.104 (x1)  0.065 s/step
+2026-10-21 04:15:35,609 loaded /sessions/rcw-0166wpaigbkowcdoxwwgytev/mnt/butcher_lab_fsg_exploration/pinn_surrogate/data/packed_v1.npz: 960 solves
+2026-10-21 04:15:35,881 data: 640 train solves, loss scales u/v/p = 0.656/0.197/237.9 (0.6 s)
+2026-10-21 04:15:35,887 model: 133443 trainable parameters
+2026-10-21 04:15:36,242 resumed runs/grad/t0g1_s1/checkpoint.pt at step 2400 (160 s trained before)
+/sessions/rcw-0166wpaigbkowcdoxwwgytev/mnt/butcher_lab_fsg_exploration/pinn_surrogate/src/pinn_surrogate/train.py:297: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:820.)
+  **{f"loss_{n}": float(v) for n, v in losses.items()},
+2026-10-21 04:15:43,190 step  2500  loss 0.09021  data 0.0478 (x1)  grad 0.0424 (x1)  0.067 s/step
+2026-10-21 04:15:49,690 step  2600  loss 0.3509  data 0.279 (x1)  grad 0.0721 (x1)  0.064 s/step
+2026-10-21 04:15:56,415 step  2700  loss 0.1767  data 0.131 (x1)  grad 0.0457 (x1)  0.066 s/step
+2026-10-21 04:16:02,643 step  2800  loss 0.2243  data 0.175 (x1)  grad 0.0495 (x1)  0.062 s/step
+2026-10-21 04:16:08,945 step  2900  loss 0.2811  data 0.226 (x1)  grad 0.055 (x1)  0.063 s/step
+2026-10-21 04:16:14,078 step  3000  loss 0.3117  data 0.247 (x1)  grad 0.0652 (x1)  0.050 s/step
+2026-10-21 04:16:14,138 trained 3000 steps: 197 s optimizing (0.066 s/step), 2 session(s)
+2026-10-21 04:16:22,504 evaluated val: 160 solves in 8.4 s
+2026-10-21 04:16:30,789 evaluated test_B: 160 solves in 8.3 s
+2026-10-21 04:16:31,390 val    median: tau 0.3866  p 0.1061  peak 0.0118  sign 0.990  pde 1.41  infer 4.1 ms
+2026-10-21 04:16:31,390 test_B median: tau 0.3710  p 0.0633  peak 0.0314  sign 1.000  pde 1.08  infer 4.1 ms
+2026-10-21 04:16:31,391 wrote runs/grad/t0g1_s1/eval.json and wall_tau_test_B.png, error_vs_re.png

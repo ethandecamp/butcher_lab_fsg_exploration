@@ -31,15 +31,23 @@ import torch
 from pinn_surrogate import physics
 from pinn_surrogate.config import TrainConfig, data_scales, parse_config
 from pinn_surrogate.data import load_packed
-from pinn_surrogate.dataset import Batch, SolveSet, sample_batch
+from pinn_surrogate.dataset import Batch, SolveSet, attach_gradients, sample_batch
 from pinn_surrogate.evaluate import evaluate_model, quick_check
-from pinn_surrogate.losses import AdaptiveWeights, data_loss, outlet_loss, pde_loss, wall_tau_loss
+from pinn_surrogate.losses import (
+    AdaptiveWeights,
+    data_loss,
+    grad_loss,
+    outlet_loss,
+    pde_loss,
+    wall_tau_loss,
+)
 from pinn_surrogate.model import ConditionedPINN, atomic_save, save_checkpoint, torch_load
 
 log = logging.getLogger(__name__)
 
 CKPT_NAME = "checkpoint.pt"  # full training state, for --resume
 MODEL_NAME = "model.pt"  # final weights + config, for evaluation and later use
+GRADS_PATH = Path(__file__).resolve().parents[2] / "data" / "packed_v1_grads.npz"
 
 
 def set_threads(n: int) -> None:
@@ -57,6 +65,7 @@ def compute_losses(
     scales: tuple[float, float, float],
     use_physics: bool,
     use_tau: bool = False,
+    use_grad: bool = False,
 ) -> dict[str, torch.Tensor]:
     """All loss terms for one batch (physics only if ``use_physics``, wall shear if ``use_tau``)."""
     pred = model(batch.xy, batch.outline, batch.log_re)
@@ -69,6 +78,11 @@ def compute_losses(
             offset=model.cfg.wall_offset,
         )
         losses["tau"] = wall_tau_loss(wq["tau_t"], batch.wall_tau_t)
+    if use_grad:
+        xy = batch.xy_grad.detach().clone().requires_grad_(True)
+        u, v, _ = model(xy, batch.outline, batch.log_re)
+        pred_g = torch.cat([physics.grad(u, xy), physics.grad(v, xy)], dim=-1)  # u_x u_y v_x v_y
+        losses["grad"] = grad_loss(pred_g, batch.grad, batch.grad_w)
     if use_physics:
         fn = model.field_fn(batch.outline, batch.log_re)
         losses["pde"] = pde_loss(
@@ -217,6 +231,10 @@ def train(cfg: TrainConfig) -> Path:
     nd = pk.nondim()
     train_set = SolveSet.from_packed(pk, nd, pk.train_subset(cfg.n_train_geoms))
     val_quick = SolveSet.from_packed(pk, nd, pk.split_indices("val")[: cfg.eval_solves])
+    n_grad = cfg.grad_nodes_per_solve if cfg.grad_weight > 0 else 0
+    if n_grad:
+        with np.load(GRADS_PATH) as z:
+            attach_gradients(train_set, pk, z["grad"])
     scales = data_scales()
     log.info(
         "data: %d train solves, loss scales u/v/p = %.3f/%.3f/%.1f (%.1f s)",
@@ -248,14 +266,18 @@ def train(cfg: TrainConfig) -> Path:
     for step in range(done + 1, cfg.steps + 1):
         t_step = time.perf_counter()
         batch = sample_batch(
-            train_set, rng, cfg.batch_solves, cfg.nodes_per_solve, cfg.pde_nodes_per_solve
+            train_set, rng, cfg.batch_solves, cfg.nodes_per_solve, cfg.pde_nodes_per_solve, n_grad
         )
-        losses = compute_losses(model, batch, scales, cfg.physics, cfg.tau_weight > 0)
+        losses = compute_losses(
+            model, batch, scales, cfg.physics, cfg.tau_weight > 0, cfg.grad_weight > 0
+        )
         if cfg.physics and (step == 1 or step % cfg.balance_every == 0):
             weights.update(losses, params)
-        loss = weights.total(losses)  # adaptive terms only; "tau" has a fixed weight
-        if "tau" in losses:
-            loss = loss + cfg.tau_weight * losses["tau"]
+        fixed = {"tau": cfg.tau_weight, "grad": cfg.grad_weight}  # not adaptive
+        loss = weights.total(losses)  # adaptive terms only
+        for n, w in fixed.items():
+            if n in losses:
+                loss = loss + w * losses[n]
         if not torch.isfinite(loss):
             raise FloatingPointError(f"non-finite loss at step {step}: {losses}")
         opt.zero_grad(set_to_none=True)
@@ -274,14 +296,14 @@ def train(cfg: TrainConfig) -> Path:
                 "loss": float(loss.detach()),
                 **{f"loss_{n}": float(v) for n, v in losses.items()},
                 **{f"lambda_{n}": v for n, v in weights.lambdas.items()},
-                **({"lambda_tau": cfg.tau_weight} if "tau" in losses else {}),
+                **{f"lambda_{n}": w for n, w in fixed.items() if n in losses},
             }
             train_at_log, step_at_log = clock.train_s, step
             if cfg.eval_every > 0 and step % cfg.eval_every == 0:
                 row.update(quick_check(model, val_quick))
             writer.write(row)
             terms = "  ".join(
-                f"{n} {float(v):.3g} (x{weights.lambdas.get(n, cfg.tau_weight):.3g})"
+                f"{n} {float(v):.3g} (x{weights.lambdas.get(n, fixed.get(n, 0.0)):.3g})"
                 for n, v in losses.items()
             )
             log.info(

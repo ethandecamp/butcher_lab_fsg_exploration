@@ -19,6 +19,7 @@ from pinn_surrogate.data import (
     node_weights,
 )
 
+NEAR_WALL_M = 50e-6  # same band as pack.py's near-wall oversampling
 CORNER_EPS = 1e-6  # outlet nodes this close to y = 0 or 1 are wall corners (no-slip)
 
 
@@ -70,6 +71,10 @@ class SolveSet:
     flow_k: np.ndarray
     family: np.ndarray
     geom_id: np.ndarray
+    # Optional (v2 gradient loss; ``attach_gradients``): Dan's (u_x, u_y, v_x, v_y), nondim,
+    # and the positions of interior nodes within NEAR_WALL_M of the cushion.
+    grad: torch.Tensor | None = None  # (S, N, 4)
+    near_wall: torch.Tensor | None = None  # (S, M)
 
     def __len__(self) -> int:
         return len(self.index)
@@ -135,6 +140,9 @@ class Batch:
     c_div: torch.Tensor  # (B, P) local divergence-term size
     normals: torch.Tensor  # (B, 256, 2) wall normals at the outline vertices, into the fluid
     wall_tau_t: torch.Tensor  # (B, 256) Dan's signed wall shear at the outline vertices
+    xy_grad: torch.Tensor | None = None  # (B, G, 2) near-wall nodes for the gradient loss
+    grad: torch.Tensor | None = None  # (B, G, 4) Dan's (u_x, u_y, v_x, v_y) there
+    grad_w: torch.Tensor | None = None  # (B, G) trust weights there
 
 
 def _random_subsets(rng: np.random.Generator, n_rows: int, n_items: int, k: int) -> np.ndarray:
@@ -143,8 +151,29 @@ def _random_subsets(rng: np.random.Generator, n_rows: int, n_items: int, k: int)
     return np.argsort(rng.random((n_rows, n_items)), axis=1)[:, :k]
 
 
+def attach_gradients(s: SolveSet, pk: Packed, grads: np.ndarray) -> None:
+    """Add Dan's velocity gradients and the near-wall node positions to ``s`` in place.
+
+    Args:
+        s: Solves built by ``SolveSet.from_packed``.
+        pk: The same packed data.
+        grads: ``packed_v1_grads.npz``'s ``grad`` for *all* packed solves, SI (1/s).
+    """
+    a = pk.arrays
+    g = np.asarray(grads[s.index], np.float64) * (pk.h / pk.u_bar[s.index])[:, None, None]
+    tag = a["tag"][s.index]
+    near = np.where((tag == TAG_INTERIOR) & (a["dist_arc"][s.index] < NEAR_WALL_M), 1, 0)
+    s.grad = torch.tensor(g, dtype=torch.float32)
+    s.near_wall = torch.tensor(_positions(near, 1))
+
+
 def sample_batch(
-    s: SolveSet, rng: np.random.Generator, n_solves: int, n_nodes: int, n_pde: int
+    s: SolveSet,
+    rng: np.random.Generator,
+    n_solves: int,
+    n_nodes: int,
+    n_pde: int,
+    n_grad: int = 0,
 ) -> Batch:
     """Draw ``n_solves`` solves and random node subsets of each.
 
@@ -154,6 +183,8 @@ def sample_batch(
         n_solves: Solves per batch (with replacement only if the set is smaller).
         n_nodes: Data nodes per solve, from all packed nodes.
         n_pde: Collocation nodes per solve, from the interior nodes.
+        n_grad: Near-wall nodes per solve for the gradient loss (0 = none). Drawn last, so
+            ``n_grad = 0`` reproduces the v1 random stream exactly.
     """
     sol = rng.choice(len(s), size=n_solves, replace=len(s) < n_solves)
     nodes = torch.tensor(_random_subsets(rng, n_solves, s.xy.shape[1], n_nodes))
@@ -162,6 +193,13 @@ def sample_batch(
     rows = sol_t[:, None]
     pde_pos = s.interior[rows, torch.tensor(pde_cols)]
     out_pos = s.outlet[sol_t]
+    extra = {}
+    if n_grad > 0:
+        if s.grad is None or s.near_wall is None:
+            raise ValueError("n_grad > 0 needs attach_gradients(...) first")
+        cols = torch.tensor(_random_subsets(rng, n_solves, s.near_wall.shape[1], n_grad))
+        pos = s.near_wall[rows, cols]
+        extra = {"xy_grad": s.xy[rows, pos], "grad": s.grad[rows, pos], "grad_w": s.weight[rows, pos]}
     return Batch(
         xy=s.xy[rows, nodes],
         uvp=s.uvp[rows, nodes],
@@ -177,4 +215,5 @@ def sample_batch(
         c_div=s.div_scale[rows, pde_pos],
         normals=s.normals[sol_t],
         wall_tau_t=s.wall_tau_t[sol_t],
+        **extra,
     )

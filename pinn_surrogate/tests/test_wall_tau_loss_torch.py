@@ -47,5 +47,19 @@ class TestWallTauLoss(unittest.TestCase):
         self.assertGreater(float(g.abs().sum()), 0.0)
 
 
+
+@unittest.skipUnless(HAS_TORCH, "torch not installed")
+class TestGradLoss(unittest.TestCase):
+    def test_zero_at_truth_and_relative(self) -> None:
+        from pinn_surrogate.losses import grad_loss
+
+        rng = np.random.default_rng(1)
+        t = torch.tensor(rng.normal(size=(2, 50, 4)))
+        w = torch.ones(2, 50, dtype=torch.float64)
+        self.assertEqual(float(grad_loss(t, t, w)), 0.0)
+        self.assertAlmostEqual(float(grad_loss(0.5 * t, t, w)), 0.25, places=12)
+        self.assertAlmostEqual(float(grad_loss(10 * (0.5 * t), 10 * t, w)), 0.25, places=12)
+
+
 if __name__ == "__main__":
     unittest.main()

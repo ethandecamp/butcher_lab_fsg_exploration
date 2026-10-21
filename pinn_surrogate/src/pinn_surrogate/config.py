@@ -103,6 +103,11 @@ class TrainConfig:
     # (analysis/README.md) showed absolute-MSE value fitting leaves wall shear ~0.6x low.
     # Not adaptive: the data loss and this term are both O(0.1-1) relative errors.
     tau_weight: float = 0.0
+    # Fixed weight of the near-wall velocity-gradient loss (``losses.grad_loss``) against
+    # Dan's projected (u_x, u_y, v_x, v_y) at grad_nodes_per_solve interior nodes within
+    # 50 um of the cushion (data/packed_v1_grads.npz, from pack_grads.py). 0 = off = v1.
+    grad_weight: float = 0.0
+    grad_nodes_per_solve: int = 256
     max_eval_solves: int = 0  # 0 = all solves in the final evaluation (smoke tests use >0)
     # Full training state (weights, Adam moments, LR schedule, loss weights, RNG) is saved
     # every ckpt_every steps, so a laptop sleep or VM restart loses at most that much work.
@@ -172,6 +177,8 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--balance-every", type=int, default=d.balance_every)
     ap.add_argument("--physics-share", type=float, default=d.physics_share)
     ap.add_argument("--tau-weight", type=float, default=d.tau_weight)
+    ap.add_argument("--grad-weight", type=float, default=d.grad_weight)
+    ap.add_argument("--grad-nodes-per-solve", type=int, default=d.grad_nodes_per_solve)
     ap.add_argument("--max-eval-solves", type=int, default=d.max_eval_solves)
     ap.add_argument("--ckpt-every", type=int, default=d.ckpt_every)
     ap.add_argument(
@@ -201,8 +208,10 @@ def parse_config(argv: list[str] | None = None) -> TrainConfig:
     for name in (*positive, "ckpt_every", "log_every", "balance_every"):
         if getattr(a, name) < 1:
             raise SystemExit(f"--{name.replace('_', '-')} must be >= 1")
-    if a.tau_weight < 0:
-        raise SystemExit("--tau-weight must be >= 0")
+    if a.tau_weight < 0 or a.grad_weight < 0:
+        raise SystemExit("--tau-weight and --grad-weight must be >= 0")
+    if a.grad_nodes_per_solve < 1:
+        raise SystemExit("--grad-nodes-per-solve must be >= 1")
     if not 0 < a.lr_min <= a.lr:
         raise SystemExit("need 0 < --lr-min <= --lr")
     model = ModelConfig(
@@ -231,6 +240,8 @@ def parse_config(argv: list[str] | None = None) -> TrainConfig:
         balance_every=a.balance_every,
         physics_share=a.physics_share,
         tau_weight=a.tau_weight,
+        grad_weight=a.grad_weight,
+        grad_nodes_per_solve=a.grad_nodes_per_solve,
         max_eval_solves=a.max_eval_solves,
         ckpt_every=a.ckpt_every,
         resume=a.resume,

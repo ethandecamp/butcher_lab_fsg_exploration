@@ -99,6 +99,17 @@ class TestTrain(unittest.TestCase):
             self.assertIn("loss_tau", row)
             self.assertEqual(row["lambda_tau"], 1.0)
 
+    @unittest.skipUnless(train_mod.GRADS_PATH.exists() if HAS_TORCH else False, "no grads pack")
+    def test_grad_loss_runs(self) -> None:
+        """--grad-weight > 0 trains and logs a grad term."""
+        with tempfile.TemporaryDirectory() as tmp:
+            run = Path(tmp) / "g"
+            args = [*TINY, "--physics", "off", "--grad-weight", "1", "--grad-nodes-per-solve", "16"]
+            train_mod.train(parse_config([*args, "--out", str(run)]))
+            row = json.loads((run / "metrics.jsonl").read_text().splitlines()[-1])
+            self.assertIn("loss_grad", row)
+            self.assertEqual(row["lambda_grad"], 1.0)
+
     def test_physics_off_and_eval_contents(self) -> None:
         """Data-only arm logs only the data loss; eval.json has both splits and all metrics."""
         with tempfile.TemporaryDirectory() as tmp:

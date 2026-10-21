@@ -62,6 +62,24 @@ def wall_tau_loss(tau_pred: torch.Tensor, tau_true: torch.Tensor) -> torch.Tenso
     return (num / (tau_true**2).sum(-1).clamp_min(1e-12)).mean()
 
 
+def grad_loss(pred: torch.Tensor, true: torch.Tensor, weight: torch.Tensor) -> torch.Tensor:
+    """Mean over solves of the weighted squared relative error of the velocity gradient.
+
+    Relative per solve (Frobenius norm of (u_x, u_y, v_x, v_y) over the solve's sampled
+    near-wall nodes), so the term is O(1) whatever the Re and comparable to ``wall_tau_loss``.
+
+    Args:
+        pred, true: (B, G, 4) gradients.
+        weight: (B, G) trust weights.
+
+    Returns:
+        Scalar.
+    """
+    num = (weight * ((pred - true) ** 2).sum(-1)).sum(-1)
+    den = (weight * (true**2).sum(-1)).sum(-1).clamp_min(1e-12)
+    return (num / den).mean()
+
+
 FLOOR = 0.01  # scale floor, as a fraction of the solve's c (stagnant zones have tiny terms)
 
 
